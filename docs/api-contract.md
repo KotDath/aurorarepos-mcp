@@ -18,9 +18,11 @@ No authenticated, upload, publish, delete, or download requests were made.
 
 The frontend also uses `POST /api/site/oldapp` with `{slug}`. The requests
 checked returned `[]`; its nonempty response contract is **unverified**.
-The MCP uses the verified `appitem.history` instead. History is the public
-history returned for the requested OS; it is not an authenticated list of all
-drafts/releases and is not guaranteed complete.
+The MCP uses the verified `appitem.history` instead. The selected/latest
+release follows the requested OS, but **history mixes OS versions**: a
+checked Aurora 4 card had 21 Aurora 5 and 4 Aurora 4 releases. Filter history
+by numeric `system` before MCP pagination (ID 3 is shared). Public history
+is not an authenticated list of drafts/releases and is not guaranteed complete.
 
 ### System identifiers are endpoint-specific
 
@@ -50,6 +52,8 @@ POST retries are not. Requests may trigger ordinary site analytics/counters.
   `stars`, `download_count`, `latest_app`.
 - Details: those fields plus `category`, `dev`, `screenshots`, `history`,
   `count`, `star`, `available_systems`. Rating/download field names differ.
+  The live `category` value is an object `{id, label, ...}`, not a string;
+  normalize its label and strip its remaining fields.
 - Releases in `history`/`latest_app`: `id`, `system`, `ver`, `release`,
   `newcomment`, `created_at`, `rpm32`, `rpm64`, `sha256_32`, `sha256_64`.
 - Dates are inconsistent: ISO timestamps and `DD-MM-YYYY`. Return bounded

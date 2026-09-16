@@ -7,7 +7,7 @@
     "slug": "example-timer",
     "user_id": 101,
     "category_id": 7,
-    "category": "Utilities",
+    "category": {"id": 7, "label": "Utilities"},
     "dev": "Example Developer",
     "description": "<p>A timer.</p><script>untrusted()</script>",
     "system": 1,
