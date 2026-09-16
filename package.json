@@ -24,7 +24,8 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test": "pnpm build && vitest run",
-    "check": "pnpm lint && pnpm typecheck && pnpm test"
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "smoke:live": "pnpm build && tsx scripts/live-smoke.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",

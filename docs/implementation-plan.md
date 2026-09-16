@@ -24,6 +24,11 @@
 9. **Stage 8 — optional remote transport:** Streamable HTTP, separate MCP
    auth and Aurora auth, per-user isolation, Origin checks, compatibility.
 
+Stages 0–2 are now implemented. Local checks include lint, typecheck, build,
+HTTP/service/protocol tests, real subprocess handshakes, Inspector CLI and
+an explicit anonymous live smoke check. CI configuration is provided; hosted
+CI has not been run locally or dispatched externally.
+
 Each completed stage gets a local commit after appropriate checks. No push
 or external publishing is implied. Stages 0–2 are the current scope.
 
