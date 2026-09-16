@@ -15,9 +15,9 @@ describe('write confirmation through MCP elicitation', () => {
   let directory: string;
   beforeEach(async () => { directory = await mkdtemp(join(tmpdir(), 'aurorarepos-write-protocol-')); });
   afterEach(async () => { vi.restoreAllMocks(); await rm(directory, { recursive: true, force: true }); });
-  async function connect(mode: 'legacy' | 'auto', response?: ElicitResult, mutate?: (test: ReturnType<typeof setupWrites>) => void) {
+  async function connect(mode: 'legacy' | 'auto', response?: ElicitResult, mutate?: (test: ReturnType<typeof setupWrites>) => void, yolo = false) {
     const test = setupWrites(directory), publicFetch = vi.fn(async () => { throw Error('Unexpected public HTTP'); });
-    const server = createServer(new AuroraService(new AuroraClient({ fetch: publicFetch })), new AuthService(test.store), undefined, undefined, test.service);
+    const server = createServer(new AuroraService(new AuroraClient({ fetch: publicFetch })), new AuthService(test.store), undefined, undefined, test.service, undefined, { yolo });
     const client = new Client({ name: 'write-confirmation-test', version: '1.0.0' }, {
       versionNegotiation: { mode }, ...(response ? { capabilities: { elicitation: { form: {} } } } : {}),
     });
@@ -78,6 +78,45 @@ describe('write confirmation through MCP elicitation', () => {
     try {
       const result = await client.callTool({ name: 'create_app', arguments: { name: 'Unknown app' } });
       expect(result.isError).toBe(true); expect(JSON.stringify(result)).toContain('WRITE_OUTCOME_UNKNOWN'); expect(JSON.stringify(result)).not.toMatch(/PRIVATE|SYNTHETIC|Cookie|csrf/); expect(test.state.posts).toBe(1);
+    } finally { await client.close(); await server.close(); }
+  });
+  for (const operation of ['create_app', 'rename_my_app'] as const) {
+    it.each(['legacy', 'auto'] as const)(`executes ${operation} in YOLO without host elicitation support (%s)`, async (mode) => {
+      const { client, server, test, elicited } = await connect(mode, undefined, undefined, true);
+      try {
+        const arguments_ = operation === 'create_app' ? { name: 'YOLO app' } : { app_id: 201, name: 'YOLO rename' };
+        const result = await client.callTool({ name: operation, arguments: arguments_ });
+        expect(result.isError).not.toBe(true); expect(output.parse(result.structuredContent).name).toBe(arguments_.name);
+        expect(test.state.posts).toBe(1); expect(elicited).not.toHaveBeenCalled();
+        const tool = (await client.listTools()).tools.find((item) => item.name === operation)!;
+        expect(tool.description).toContain('YOLO mode');
+        expect(tool.description).not.toContain('Requires exact user form confirmation');
+        expect(tool.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false });
+      } finally { await client.close(); await server.close(); }
+    });
+  }
+  it('does not request a form in YOLO even when the host supports forms', async () => {
+    const { client, server, test, elicited } = await connect('auto', { action: 'decline' }, undefined, true);
+    try {
+      const result = await client.callTool({ name: 'create_app', arguments: { name: 'No form app' } });
+      expect(result.isError).not.toBe(true); expect(test.state.posts).toBe(1); expect(elicited).not.toHaveBeenCalled();
+    } finally { await client.close(); await server.close(); }
+  });
+  it('still validates ownership in YOLO', async () => {
+    const { client, server, test } = await connect('auto', undefined, undefined, true); test.state.role = 'admin';
+    try {
+      const result = await client.callTool({ name: 'create_app', arguments: { name: 'Refused app' } });
+      expect(result.isError).toBe(true); expect(test.state.posts).toBe(0);
+    } finally { await client.close(); await server.close(); }
+  });
+  it('does not automatically retry uncertain writes in YOLO', async () => {
+    const { client, server, test } = await connect('auto', undefined, undefined, true); test.state.mode = 'network';
+    try {
+      const args = { name: 'Unknown YOLO app' };
+      const result = await client.callTool({ name: 'create_app', arguments: args });
+      expect(result.isError).toBe(true); expect(JSON.stringify(result)).toContain('WRITE_OUTCOME_UNKNOWN');
+      const retry = await client.callTool({ name: 'create_app', arguments: args });
+      expect(retry.isError).toBe(true); expect(JSON.stringify(retry)).toContain('WRITE_ALREADY_ATTEMPTED'); expect(test.state.posts).toBe(1);
     } finally { await client.close(); await server.close(); }
   });
 });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1
+
+- Optional stdio launch flag `--yolo`: all five write tools execute without MCP
+  form confirmation, including from clients without elicitation support.
+- Default startup retains exact-user confirmations. Authentication, ownership,
+  RPM/state/session checks, duplicate-attempt journal and read-back are unchanged.
+- Mode-aware server instructions/tool descriptions and Russian YOLO setup docs.
+
 ## 1.0.0
 
 - Russian README with installation, account login, usage examples and setup

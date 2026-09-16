@@ -33,20 +33,23 @@ try {
   if (pkg.bin['aurorarepos-mcp'] !== 'dist/index.js') throw Error('Unexpected package entrypoint');
   const entry = join(installed, pkg.bin['aurorarepos-mcp']);
   const help = await run(process.execPath, [entry, '--help'], { cwd: workspace, timeout: 10_000 });
-  if (help.stdout || !help.stderr.includes('auth login')) throw Error('CLI must reserve stdout for MCP');
+  if (help.stdout || !help.stderr.includes('auth login') || !help.stderr.includes('--yolo')) throw Error('CLI must reserve stdout for MCP and document YOLO');
   const rpm = join(directory, 'ru.example.Test-1.2.3-1.armv7hl.rpm'); await writeFile(rpm, syntheticRpm().bytes);
   for (const mode of ['legacy', 'auto'] as const) {
-    client = new Client({ name: 'installed-package-smoke', version: '1.0.0' }, { versionNegotiation: { mode } });
-    const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: workspace, stderr: 'pipe' });
-    await client.connect(transport);
-    if (client.getServerVersion()?.version !== pkg.version) throw Error('Version mismatch');
-    const tools = await client.listTools();
-    if (tools.tools.length !== 17 || !tools.tools.some((tool) => tool.name === 'upload_release')) throw Error('Missing installed tools');
-    const preview = await client.callTool({ name: 'prepare_release', arguments: { rpm32_path: rpm, aurora_versions: [5] } });
-    if (preview.isError || prepareOutput.parse(preview.structuredContent).uploaded !== false) throw Error('Installed local preflight failed');
-    await client.close(); client = undefined;
+    for (const yolo of [false, true]) {
+      client = new Client({ name: 'installed-package-smoke', version: '1.0.0' }, { versionNegotiation: { mode } });
+      const transport = new StdioClientTransport({ command: process.execPath, args: [entry, ...(yolo ? ['--yolo'] : [])], cwd: workspace, stderr: 'pipe' });
+      await client.connect(transport);
+      if (client.getServerVersion()?.version !== pkg.version) throw Error('Version mismatch');
+      const tools = await client.listTools();
+      if (tools.tools.length !== 17 || !tools.tools.some((tool) => tool.name === 'upload_release')) throw Error('Missing installed tools');
+      if (!tools.tools.find((tool) => tool.name === 'upload_release')?.description?.includes(yolo ? 'YOLO mode' : 'Requires exact user form confirmation')) throw Error('Unexpected installed write mode');
+      const preview = await client.callTool({ name: 'prepare_release', arguments: { rpm32_path: rpm, aurora_versions: [5] } });
+      if (preview.isError || prepareOutput.parse(preview.structuredContent).uploaded !== false) throw Error('Installed local preflight failed');
+      await client.close(); client = undefined;
+    }
   }
-  console.log(JSON.stringify({ installed_package: pkg.version, archive_files: entries.length, tools: 17, protocol_modes: 2, website_requests: 0 }));
+  console.log(JSON.stringify({ installed_package: pkg.version, archive_files: entries.length, tools: 17, protocol_modes: 2, server_modes: 2, website_requests: 0 }));
 } finally {
   await client?.close(); await rm(directory, { recursive: true, force: true });
 }
