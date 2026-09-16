@@ -55,6 +55,9 @@ export class AuthClient {
   }
   cancel(): void { this.token = undefined; }
   async check(signal?: AbortSignal): Promise<void> {
+    await this.role(signal);
+  }
+  async role(signal?: AbortSignal): Promise<string> {
     let role = await this.http.accountRole(signal);
     if (typeof role === 'string') {
       role = role.trim();
@@ -63,6 +66,11 @@ export class AuthClient {
       try { role = JSON.parse(role as string) as unknown; } catch { /* plain identifier */ }
     }
     if (!z.string().min(1).max(80).regex(/^[a-z][a-z0-9_-]*$/i).safeParse(role).success || ['guest', 'anonymous'].includes(String(role).toLowerCase())) throw new AuthError('AUTH_FAILED');
+    return role as string;
   }
+  apps(page: number, size: number, signal?: AbortSignal): Promise<unknown> { return this.http.developerApps(page, size, signal); }
+  app(id: number, signal?: AbortSignal): Promise<unknown> { return this.http.developerApp(id, signal); }
+  versions(id: number, page: number, size: number, signal?: AbortSignal): Promise<unknown> { return this.http.developerVersions(id, page, size, signal); }
+  version(id: number, signal?: AbortSignal): Promise<unknown> { return this.http.developerVersion(id, signal); }
   snapshot(): Session { return snapshot(this.jar); }
 }

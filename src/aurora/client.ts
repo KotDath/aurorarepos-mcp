@@ -10,6 +10,7 @@ export type Fetch = (input: URL, init: RequestInit) => Promise<Response>;
 export type ClientOptions = {
   fetch?: Fetch;
   jar?: CookieJar;
+  gate?: RequestGate;
   timeoutMs?: number;
   maxResponseBytes?: number;
   minIntervalMs?: number;
@@ -27,7 +28,7 @@ export class AuroraClient {
   constructor(options: ClientOptions = {}) {
     this.jar = options.jar ?? new CookieJar();
     this.fetch = options.fetch ?? ((url, init) => fetch(url, init));
-    this.gate = new RequestGate(options.minIntervalMs ?? 250);
+    this.gate = options.gate ?? new RequestGate(options.minIntervalMs ?? 250);
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.maxBytes = options.maxResponseBytes ?? 2 * 1024 * 1024;
   }
@@ -62,6 +63,28 @@ export class AuroraClient {
   }
   accountRole(signal?: AbortSignal): Promise<unknown> {
     return this.request(new URL('/api/getrole', ORIGIN), 'GET', undefined, signal, false, true);
+  }
+  developerApps(page: number, size: number, signal?: AbortSignal): Promise<unknown> {
+    const url = new URL('/api/application', ORIGIN);
+    url.searchParams.set('page', String(page)); url.searchParams.set('pagination', String(size));
+    return this.request(url, 'GET', undefined, signal);
+  }
+  developerApp(id: number, signal?: AbortSignal): Promise<unknown> {
+    this.validId(id);
+    return this.request(new URL(`/api/application/${id}`, ORIGIN), 'GET', undefined, signal);
+  }
+  developerVersions(id: number, page: number, size: number, signal?: AbortSignal): Promise<unknown> {
+    this.validId(id);
+    const url = new URL('/api/application/ver', ORIGIN);
+    url.searchParams.set('id', String(id)); url.searchParams.set('page', String(page)); url.searchParams.set('pagination', String(size));
+    return this.request(url, 'GET', undefined, signal);
+  }
+  developerVersion(id: number, signal?: AbortSignal): Promise<unknown> {
+    this.validId(id);
+    return this.request(new URL(`/api/application/appitem/${id}`, ORIGIN), 'GET', undefined, signal);
+  }
+  private validId(id: number): void {
+    if (!Number.isSafeInteger(id) || id < 1) throw new AuroraError('UPSTREAM_ERROR');
   }
 
   private async sessionPost(path: string, data: object, signal?: AbortSignal): Promise<unknown> {
@@ -122,7 +145,7 @@ export class AuroraClient {
               headers.set('X-Requested-With', 'XMLHttpRequest');
               headers.set('Referer', `${ORIGIN}/login`);
             }
-            if (url.pathname === '/api/getrole') headers.set('X-Requested-With', 'XMLHttpRequest');
+            if (url.pathname === '/api/getrole' || url.pathname.startsWith('/api/application')) headers.set('X-Requested-With', 'XMLHttpRequest');
             const response = await this.fetch(url, {
               method, headers, redirect: accountPost ? 'manual' : 'error', signal: timed,
               ...(data ? { body: JSON.stringify(data) } : {}),

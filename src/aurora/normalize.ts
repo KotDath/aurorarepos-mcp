@@ -30,7 +30,7 @@ export function versionsFromIds(ids: number[]): AuroraVersion[] {
   }
   return [...result].sort();
 }
-export function safeUrl(value: string | null | undefined, prefix: '/download/' | '/image/'): string | null {
+export function safeUrl(value: string | null | undefined, prefix: '/download/' | '/image/' | '/rpm/'): string | null {
   if (!value || value.length > 2000) return null;
   try {
     const url = new URL(value, ORIGIN);

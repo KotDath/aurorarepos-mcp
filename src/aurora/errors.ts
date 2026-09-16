@@ -2,7 +2,7 @@ export type ErrorCode =
   | 'NOT_FOUND' | 'AUTH_REQUIRED' | 'ACCESS_DENIED' | 'CSRF_REJECTED'
   | 'RATE_LIMITED' | 'UPSTREAM_UNAVAILABLE' | 'UPSTREAM_ERROR'
   | 'INVALID_RESPONSE' | 'RESPONSE_TOO_LARGE' | 'TIMEOUT' | 'CANCELLED'
-  | 'NETWORK_ERROR' | 'REDIRECT_REJECTED' | 'BUSY' | 'INTERNAL_ERROR';
+  | 'NETWORK_ERROR' | 'REDIRECT_REJECTED' | 'OWNERSHIP_UNVERIFIED' | 'LOOKUP_LIMIT' | 'BUSY' | 'INTERNAL_ERROR';
 
 const messages: Record<ErrorCode, string> = {
   NOT_FOUND: 'Application or requested OS version was not found.',
@@ -18,6 +18,8 @@ const messages: Record<ErrorCode, string> = {
   CANCELLED: 'The request was cancelled.',
   NETWORK_ERROR: 'Could not reach Aurora Repos. Check connectivity and try again later.',
   REDIRECT_REJECTED: 'The account response redirected to an unsupported target. No redirect was followed and no credential POST was forwarded.',
+  OWNERSHIP_UNVERIFIED: 'Caller-owned developer membership could not be established. Admin-wide and unknown-role scopes are unsupported; no private app data was returned.',
+  LOOKUP_LIMIT: 'Ownership lookup exceeded 500 items. No unverified detail was fetched. Use list tools to inspect the catalog; a larger lookup requires implementation changes.',
   BUSY: 'Too many pending requests. Wait for existing requests to finish.',
   INTERNAL_ERROR: 'An internal error occurred. No upstream response or secrets are included.',
 };
