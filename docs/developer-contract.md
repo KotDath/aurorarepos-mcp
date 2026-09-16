@@ -4,6 +4,9 @@ Verified with an existing encrypted developer session on 2026-09-16.
 Discovery used GET only. Live data, credentials, cookies and contact/token
 fields were not saved. Fixtures are synthetic. No other author's private app
 was queried, and no upload/publication/profile mutation was made.
+All four operations passed live adapter and fresh-process MCP stdio checks
+with one owned app and one published release. The six anonymous tools also
+have a separate live regression check; neither check prints private payloads.
 
 | Read | Fixed endpoint | Observed response |
 | --- | --- | --- |

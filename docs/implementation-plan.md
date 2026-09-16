@@ -13,7 +13,9 @@
    protected session store outside Git, auth status/logout. No secrets as
    tool arguments or returned content.
 5. **Stage 4 — developer read operations:** own apps, versions, statuses;
-   role checks and session expiry handling.
+   `list_my_apps`, `get_my_app`, `list_my_app_versions`, `get_my_app_version`;
+   verified `dev` role, bounded caller-catalog membership checks and session
+   expiry handling. No admin-wide fallback or site writes.
 6. **Stage 5 — prepare release without uploading:** RPM/file validation,
    allowed directories/realpath, hashes and reviewable preview.
 7. **Stage 6 — confirmed writes:** create/upload/update/schedule, verified
@@ -24,16 +26,21 @@
 9. **Stage 8 — optional remote transport:** Streamable HTTP, separate MCP
    auth and Aurora auth, per-user isolation, Origin checks, compatibility.
 
-Stages 0–3 are now implemented. Local checks include lint, typecheck, build,
+Stages 0–4 are now implemented. Local checks include lint, typecheck, build,
 HTTP/service/protocol tests, real subprocess handshakes, Inspector CLI and
 an explicit anonymous live smoke check. Stage 3 additionally checks encrypted
 storage with a native Linux vault smoke test, account login and fresh-process
 CLI/MCP session verification. 2FA is mock-tested only. CI is configured for
 Linux/macOS/Windows and Node 22/24; native macOS/Windows vault integration has
-not been run here, and hosted CI has not been dispatched externally.
+not been run here, and hosted CI has not been dispatched externally. Stage 4
+adds synthetic ownership/status/limit/cancellation tests, all four protocol
+calls and an opt-in live authenticated stdio smoke check with a published
+release. Draft/review/rejection and old-release selection are fixture-tested
+only. The full local suite currently has 167 passing tests.
 
 Each completed stage gets a local commit after appropriate checks. No push
-or external publishing is implied. Stage 4 developer reads remain deferred.
+or external publishing is implied. Stage 5 release preparation remains deferred;
+even that stage must not upload or publish anything.
 
 SDK 2.0.0 is published as `@modelcontextprotocol/server`, Node >=20.
 Use Node >=22 here. The 2026-07-28 HTTP spec removes protocol-level sessions

@@ -1,35 +1,9 @@
-import { CookieJar } from 'tough-cookie';
-import { describe, expect, it, vi } from 'vitest';
-import { DeveloperService } from '../src/developer/service.js';
-import { SessionStore } from '../src/auth/store.js';
-import { snapshot } from '../src/auth/session.js';
+import { describe, expect, it } from 'vitest';
 import { AuthError } from '../src/auth/errors.js';
-import type { Fetch } from '../src/aurora/client.js';
 import { fixture, json } from './helpers.js';
 
-type Record = { [key: string]: unknown };
-const apps = () => (fixture('my-apps') as { data: { data: Record[] } }).data.data;
-const versions = () => (fixture('my-versions') as { data: { data: Record[] } }).data.data;
-function page(rows: Record[], url: URL) {
-  const number = Number(url.searchParams.get('page')), size = Number(url.searchParams.get('pagination'));
-  return { success: true, data: { current_page: number, per_page: size, last_page: Math.max(1, Math.ceil(rows.length / size)), total: rows.length, data: rows.slice((number - 1) * size, number * size) } };
-}
-export function developerBackend() {
-  return vi.fn<Fetch>(async (url) => {
-    if (url.pathname === '/api/getrole') return new Response('dev', { headers: { 'Content-Type': 'text/html' } });
-    if (url.pathname === '/api/application') return json(page(apps(), url));
-    if (url.pathname === '/api/application/201') return json(apps()[0]);
-    if (url.pathname === '/api/application/ver') return json(page(versions(), url));
-    if (url.pathname === '/api/application/appitem/301') return json(fixture('my-version'));
-    throw new Error('Unexpected test endpoint');
-  });
-}
-export function setupDeveloper(fetch = developerBackend(), timeout = 30_000) {
-  const jar = new CookieJar(); jar.setCookieSync('aurora_session=SYNTHETIC_AUTH_COOKIE; Secure; HttpOnly; Path=/', 'https://aurorarepos.ru');
-  const store = new SessionStore(); const load = vi.spyOn(store, 'load').mockResolvedValue(snapshot(jar));
-  const save = vi.spyOn(store, 'save');
-  return { service: new DeveloperService(store, { fetch, minIntervalMs: 0 }, timeout), fetch, load, save };
-}
+import { apps, versions, page, developerBackend, setupDeveloper, type TestRecord as Record } from './developer-helpers.js';
+import { setTimeout as delay } from 'node:timers/promises';
 
 describe('caller-owned developer reads', () => {
   it('lists own apps with statuses, scheduling/beta flags, nullable draft slug and strict pagination', async () => {
@@ -149,6 +123,36 @@ describe('caller-owned developer reads', () => {
     const { service, fetch } = setupDeveloper(); const records = apps(); (records[0]!.latest_app as Record).status = '9'; records[1]!.latest_app = null;
     fetch.mockResolvedValueOnce(json('dev')).mockResolvedValueOnce(json(page(records, new URL('https://aurorarepos.ru/?page=1&pagination=2'))));
     const result = await service.listApps({ page_size: 2 }); expect(result.apps[0]?.status).toEqual({ code: 9, state: 'unknown' }); expect(result.apps[1]?.status).toEqual({ code: null, state: 'no_release' });
+  });
+  it.each([{ code: '1', state: 'pending_review' }, { code: '2', state: 'rejected' }])('maps frontend status $code to $state', async ({ code, state }) => {
+    const { service, fetch } = setupDeveloper(); const records = versions(); records[0]!.status = code;
+    fetch.mockResolvedValueOnce(json('dev')).mockResolvedValueOnce(json(page(apps(), new URL('https://aurorarepos.ru/?page=1&pagination=20')))).mockResolvedValueOnce(json(page(records, new URL('https://aurorarepos.ru/?page=1&pagination=2'))));
+    expect((await service.listVersions({ app_id: 201, page_size: 2 })).versions[0]?.status).toEqual({ code: Number(code), state });
+  });
+  it('shares the authenticated HTTP concurrency bound across fresh clients/tool calls', async () => {
+    const fetch = developerBackend(); let active = 0, peak = 0;
+    fetch.mockImplementation(async (url) => {
+      active++; peak = Math.max(peak, active);
+      try { await delay(5); return url.pathname === '/api/getrole' ? json('dev') : json(page(apps(), url)); }
+      finally { active--; }
+    });
+    const { service } = setupDeveloper(fetch);
+    await Promise.all(Array.from({ length: 8 }, () => service.listApps({ page_size: 2 })));
+    expect(peak).toBe(2); expect(fetch).toHaveBeenCalledTimes(16);
+  });
+  it('bounds release membership scans without fetching an unknown release', async () => {
+    const records = Array.from({ length: 501 }, (_, index) => ({ ...versions()[0], id: index + 1000 }));
+    const { service, fetch } = setupDeveloper(); fetch.mockImplementation(async (url) => {
+      if (url.pathname === '/api/getrole') return json('dev');
+      return json(page(url.pathname === '/api/application' ? apps() : records, url));
+    });
+    await expect(service.version({ app_id: 201, version_id: 301 })).rejects.toMatchObject({ code: 'LOOKUP_LIMIT' });
+    expect(fetch).toHaveBeenCalledTimes(27); expect(fetch.mock.calls.some(([url]) => url.pathname.includes('/appitem/'))).toBe(false);
+  });
+  it('rejects foreign screenshots in selected release details', async () => {
+    const { service, fetch } = setupDeveloper();
+    fetch.mockResolvedValueOnce(json('dev')).mockResolvedValueOnce(json(page(apps(), new URL('https://aurorarepos.ru/?page=1&pagination=20')))).mockResolvedValueOnce(json(page(versions(), new URL('https://aurorarepos.ru/?page=1&pagination=20')))).mockResolvedValueOnce(json({ ...(fixture('my-version') as Record), screenshots: [{ application_id: 999, src: '/image/foreign.png' }] }));
+    await expect(service.version({ app_id: 201, version_id: 301 })).rejects.toMatchObject({ code: 'OWNERSHIP_UNVERIFIED' });
   });
   it('bounds membership scans and never fetches unverified detail after the bound', async () => {
     const records = Array.from({ length: 501 }, (_, index) => ({ ...apps()[0], id: index + 1000, latest_app: null }));

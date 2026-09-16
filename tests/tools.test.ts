@@ -7,11 +7,13 @@ import { AuroraService } from '../src/aurora/service.js';
 import { backend, json } from './helpers.js';
 import { AuthService } from '../src/auth/service.js';
 import { AuthError } from '../src/auth/errors.js';
+import { setupDeveloper } from './developer-helpers.js';
+import type { DeveloperService } from '../src/developer/service.js';
 
 describe('MCP tools over a protocol connection', () => {
-  async function connect(auth = new AuthService()) {
+  async function connect(auth = new AuthService(), developer?: DeveloperService) {
     const fetch = backend();
-    const server = createServer(new AuroraService(new AuroraClient({ fetch, minIntervalMs: 0 })), auth);
+    const server = createServer(new AuroraService(new AuroraClient({ fetch, minIntervalMs: 0 })), auth, developer);
     const client = new Client({ name: 'integration-test', version: '1.0.0' });
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
@@ -19,11 +21,11 @@ describe('MCP tools over a protocol connection', () => {
     return { client, server, fetch };
   }
 
-  it('exposes six public tools and safe account status with input/output schemas', async () => {
+  it('exposes six public, four developer tools and safe account status with schemas', async () => {
     const { client, server } = await connect();
     try {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps', 'auth_status'].sort());
+      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps', 'auth_status', 'list_my_apps', 'get_my_app', 'list_my_app_versions', 'get_my_app_version'].sort());
       for (const tool of tools) {
         expect(tool.annotations?.readOnlyHint).toBe(true);
         expect(tool.annotations?.destructiveHint).toBe(false);
@@ -102,6 +104,35 @@ describe('MCP tools over a protocol connection', () => {
     try {
       await client.listTools(); const output = await client.callTool({ name: 'auth_status', arguments: {} });
       expect(output.isError).toBe(true); expect(JSON.stringify(output)).toContain('STORAGE_UNAVAILABLE'); expect(output.structuredContent).toBeUndefined();
+    } finally { await client.close(); await server.close(); }
+  });
+  it('calls all four developer tools with matching schema-validated structured/text outputs', async () => {
+    const developer = setupDeveloper(); const { client, server, fetch } = await connect(new AuthService(), developer.service);
+    try {
+      await client.listTools();
+      for (const call of [
+        { name: 'list_my_apps', arguments: { page_size: 2 } },
+        { name: 'get_my_app', arguments: { app_id: 201 } },
+        { name: 'list_my_app_versions', arguments: { app_id: 201, page_size: 2 } },
+        { name: 'get_my_app_version', arguments: { app_id: 201, version_id: 301 } },
+      ]) {
+        const output = await client.callTool(call); expect(output.isError).not.toBe(true); expect(output.structuredContent).toBeDefined();
+        const text = output.content[0]; expect(text?.type).toBe('text'); if (text?.type === 'text') expect(JSON.parse(text.text)).toEqual(output.structuredContent);
+        expect(JSON.stringify(output)).not.toMatch(/SYNTHETIC_PRIVATE|SYNTHETIC_AUTH_COOKIE|HIDDEN_SECRET|evil.example|token|email|testers/);
+      }
+      expect(fetch).not.toHaveBeenCalled(); expect(developer.save).not.toHaveBeenCalled();
+    } finally { await client.close(); await server.close(); }
+  });
+  it('returns sanitized developer errors without private fields and rejects credential/owner overrides', async () => {
+    const developer = setupDeveloper(); const { client, server } = await connect(new AuthService(), developer.service);
+    try {
+      await client.listTools();
+      developer.load.mockResolvedValueOnce(null);
+      const missing = await client.callTool({ name: 'list_my_apps', arguments: {} }); expect(missing.isError).toBe(true); expect(JSON.stringify(missing)).toContain('AUTH_REQUIRED');
+      const wrong = await client.callTool({ name: 'get_my_app', arguments: { app_id: 999 } }); expect(wrong.isError).toBe(true); expect(JSON.stringify(wrong)).toContain('NOT_FOUND');
+      const before = developer.fetch.mock.calls.length;
+      const invalid = await client.callTool({ name: 'get_my_app_version', arguments: { app_id: 201, version_id: 301, user_id: 999, token: 'MUST_NOT_LEAK' } });
+      expect(invalid.isError).toBe(true); expect(JSON.stringify(invalid)).not.toContain('MUST_NOT_LEAK'); expect(developer.fetch).toHaveBeenCalledTimes(before);
     } finally { await client.close(); await server.close(); }
   });
 });

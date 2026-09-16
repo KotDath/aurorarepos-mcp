@@ -1,8 +1,9 @@
 # aurorarepos-mcp
 
 Unofficial local TypeScript MCP server for <https://aurorarepos.ru/>.
-Stages 0–3 are implemented: observed API contract, SDK v2 stdio scaffold,
-anonymous read-only tools and secure out-of-band account login/session status.
+Stages 0–4 are implemented: observed API contract, SDK v2 stdio scaffold,
+anonymous read-only tools, secure out-of-band account login/session status
+and caller-owned developer app/release reads.
 No uploads, publication, app deletion, package installation or binary downloads.
 
 ## Tools
@@ -16,6 +17,10 @@ No uploads, publication, app deletion, package installation or binary downloads.
 | `list_systems` | Available OS versions and website IDs | none |
 | `list_author_apps` | Public apps by author, locally paginated | `author_id`, `page`, `page_size` |
 | `auth_status` | Local account state; optionally verify against the site | `verify` (default false) |
+| `list_my_apps` | Caller-owned developer catalog, latest release/status | `page`, `page_size` |
+| `get_my_app` | Owned app details and latest release metadata | `app_id` |
+| `list_my_app_versions` | Owned app releases, including non-public statuses | `app_id`, `page`, `page_size` |
+| `get_my_app_version` | Selected owned release, shared description and screenshots | `app_id`, `version_id` |
 
 `aurora_version` is the OS major version **4 or 5** (default **5**), not the
 website's system ID. Pagination defaults to page 1 / 10 items, maximum 20
@@ -83,7 +88,24 @@ explicitly typing `resend` at the 2FA prompt; no automated resend/relogin.
 session is valid. `verify=true` makes a protected read, distinguishing verified
 authentication, 401 expiry and 403 access denial. Network/storage failures are
 errors, not a claim that you are logged out. Public tools always use an isolated
-anonymous cookie jar, including after login; developer tools remain stage 4.
+anonymous cookie jar, including after login.
+
+### Developer reads
+
+After terminal login, call `list_my_apps`, then use its `id` as `app_id`.
+Get `version_id` from `list_my_app_versions`; do not substitute the app ID.
+All four tools verify the stored session's `dev` role and caller-scoped catalog
+membership before private detail requests. Admin/unknown roles are refused:
+there is no independently verified current-user-ID endpoint, and an admin-wide
+catalog must not be interpreted as "my apps". No user/owner override is accepted.
+
+Membership scans are limited to 500 apps/releases and the whole operation to
+30 seconds. Large catalogs can return `LOOKUP_LIMIT`; they do not bypass ownership
+checks. Each call reloads the encrypted session; reads do not rewrite its cookies.
+Expired sessions require manual terminal login. `get_my_app_version` returns
+`shared_app_description`, not a historical release-specific description snapshot.
+Release status is `draft`, `pending_review`, `rejected`, `published` or `unknown`;
+an app with no latest release has `no_release`. Beta/scheduling flags are separate.
 
 ### Cross-platform secure storage
 
@@ -171,6 +193,17 @@ pnpm smoke:live
 
 It checks all six tools, validates outputs and prints counts, not raw data.
 
+Explicit authenticated live stdio smoke test (requires a saved developer session
+with at least one app and release):
+
+```sh
+pnpm smoke:developer
+```
+
+It checks all four developer tools and prints only counts/selected status. The
+four reads have been checked on Linux with a published release; other statuses
+and older-release selection are covered by synthetic fixtures, not live accounts.
+
 ## Safety/limits
 
 - Fixed `https://aurorarepos.ru` origin and explicitly allowlisted endpoints.
@@ -191,6 +224,9 @@ It checks all six tools, validates outputs and prints counts, not raw data.
   Website text is still **untrusted data**, not model instructions.
 - Package/screenshot links are restricted to the website origin and expected
   path prefixes. They are metadata only, not fetched or installed.
+- Developer endpoints use authenticated GET only, with a separate shared HTTP
+  gate from anonymous tools. Private payloads are not saved; owner/contact/token
+  fields are checked internally where needed but never returned.
 
 ## Layout
 
@@ -199,6 +235,7 @@ src/index.ts           stdio lifecycle
 src/server.ts          MCP factory
 src/tools/             registration and safe result formatting
 src/auth/              interactive CLI, account client, encrypted session/vault
+src/developer/         caller-owned reads, runtime schemas and normalization
 src/aurora/client.ts   fixed endpoints, guest cookies/CSRF, bounded HTTP
 src/aurora/gate.ts     rate/concurrency/cancellation
 src/aurora/service.ts  API parsing and public operations
@@ -207,9 +244,11 @@ src/aurora/normalize.ts allowlisted fields, HTML and URL normalization
 tests/                 synthetic fixtures and HTTP/service/protocol tests
 scripts/live-smoke.ts  opt-in public live check
 scripts/keyring-smoke.ts opt-in native vault check
+scripts/developer-smoke.ts opt-in authenticated stdio read check
 ```
 
 See [observed API contract](docs/api-contract.md) and
-[authentication contract](docs/auth-contract.md), plus
+[authentication contract](docs/auth-contract.md) and
+[developer read contract](docs/developer-contract.md), plus
 [implementation milestones](docs/implementation-plan.md).
 The website's internal API may change. This project is unofficial.
