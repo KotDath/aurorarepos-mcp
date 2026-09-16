@@ -4,6 +4,8 @@ Unofficial local TypeScript MCP server for <https://aurorarepos.ru/>.
 Stages 0–5 are implemented: observed API contract, SDK v2 stdio scaffold,
 anonymous read-only tools, secure out-of-band account login/session status
 caller-owned developer app/release reads and local RPM release previews.
+The first slice of stage 6 adds user-confirmed creation/renaming of app cards;
+the rest of stage 6 is not implemented or live-verified.
 No uploads, publication, app deletion, package installation or binary downloads.
 
 ## Tools
@@ -22,6 +24,8 @@ No uploads, publication, app deletion, package installation or binary downloads.
 | `list_my_app_versions` | Owned app releases, including non-public statuses | `app_id`, `page`, `page_size` |
 | `get_my_app_version` | Selected owned release, shared description and screenshots | `app_id`, `version_id` |
 | `prepare_release` | Local RPM metadata/checksum preview; no upload or approval | `rpm32_path`, `rpm64_path`, `aurora_versions`, `app_id`, `release_notes` |
+| `create_app` | Create a name/card after exact user form confirmation; no release | `name` |
+| `rename_my_app` | Rename an owned card after exact user form confirmation | `app_id`, `name` |
 
 `aurora_version` is the OS major version **4 or 5** (default **5**), not the
 website's system ID. Pagination defaults to page 1 / 10 items, maximum 20
@@ -200,6 +204,48 @@ There is no directory sandbox: the tool can read RPMs anywhere the server's OS
 user can access them, including paths reached through filesystem links.
 See [release preparation security boundary](docs/release-preparation.md).
 
+## Confirmed app-card writes (stage 6, partial)
+
+`create_app` creates an application name/card, **not a release or publication**.
+`rename_my_app` renames an app ID from `list_my_apps`. These tools require terminal
+login, verified `dev` role and a host supporting MCP form elicitation. Creating
+an already-owned name is rejected. Names are bounded plain text, not HTML.
+
+The host displays the exact action, app ID, previous/new name and contract warning
+and asks the user to confirm (unchecked by default). Without accepted confirmation
+no mutation is sent. There is no `confirm`/approval-token tool argument that the
+model can supply. SDK v2 handles modern multi-round-trip and legacy shim flows.
+The host is trusted to actually present the form to the user.
+
+Confirmation expires after five minutes, is one-use and is bound to the arguments,
+saved session and catalog/app state. Session switches/logout, changed state and
+forged/replayed requests fail before POST. CSRF is bootstrapped in the authenticated
+jar and the role checked again. Mutation redirects are rejected and mutations
+are never automatically retried, including 419 failures.
+
+Empty hashed attempt markers live in the session data directory's `write-attempts/`
+subdirectory (outside Git), with OS-user permissions; maximum 4096 markers. They
+block concurrent and restarted attempts. Markers have no credentials, names,
+contacts, RPM paths or upstream payloads. They are retained after success or failure,
+including uncertain failures, and are not automatically cleared on local logout.
+There is no journal reset/recovery command yet; do not automatically delete markers
+to bypass a failed write. Inspect the website/read tools first and request manual
+recovery if necessary.
+
+`WRITE_OUTCOME_UNKNOWN` means the server may have changed the site but could not
+verify the result; it does **not** mean nothing happened. `WRITE_ALREADY_ATTEMPTED`
+also requires inspection, not an automatic retry. Success is reconciled by owned
+catalog/details and returns `publication_requested=false`, not a claim that an
+existing app is unpublished. Write-response messages and refreshed cookies are
+not forwarded or persisted.
+
+Both tools are tested against synthetic HTTP, including accepted/declined forms
+over legacy/automatic protocol connections. **No live create/rename was performed.**
+Frontend contract observations are not full live backend verification.
+RPM upload, complete release metadata editing, scheduling, review/publication,
+images, tester management, token generation and deletion remain unsupported.
+See [observed write contract and gaps](docs/write-contract.md).
+
 ## Development
 
 Requires Node.js 22+ and pnpm 10.
@@ -275,6 +321,9 @@ and older-release selection are covered by synthetic fixtures, not live accounts
 - Local release preparation has an independent one-operation gate and accepts
   arbitrary absolute RPM paths; it never accesses the account or HTTP. Its checks
   do not establish trusted signatures, installability or user approval.
+- App-card writes have a separate serialized gate, bounded one-use confirmations,
+  a durable attempt journal, exact-user form approval and read-back reconciliation.
+  There are no mutation retries or automatic journal resets.
 
 ## Layout
 
@@ -285,6 +334,7 @@ src/tools/             registration and safe result formatting
 src/auth/              interactive CLI, account client, encrypted session/vault
 src/developer/         caller-owned reads, runtime schemas and normalization
 src/release/           local RPM reads, bounded preflight and preview
+src/writes/            confirmed app-card writes and durable attempt markers
 src/aurora/client.ts   fixed endpoints, guest cookies/CSRF, bounded HTTP
 src/aurora/gate.ts     rate/concurrency/cancellation
 src/aurora/service.ts  API parsing and public operations

@@ -19,7 +19,7 @@ omitting/reconstructing fields may unintentionally erase contact/screenshot data
 
 ## First implementation slice
 
-Implement create/rename card first. Multipart uploads, metadata editing,
+Create/rename card is implemented and synthetic-tested first. Multipart uploads, metadata editing,
 scheduling and publication remain deferred until their complete contract and
 preservation semantics are established. Do not label this slice all of stage 6.
 
@@ -42,6 +42,20 @@ not "nothing changed"; ask for manual read-only inspection, never resend.
 Read back the caller-scoped catalog/details to reconcile the exact changed name.
 Do not forward upstream messages, raw bodies, tokens or contacts. No account
 cookies are persisted from writes, avoiding concurrent stale-session overwrite.
+
+Attempt markers are empty `<sha256>.attempt` files under the local encrypted
+session directory's `write-attempts/` subdirectory. Claims use exclusive creation,
+user-owned private directory and 0600 files; cap 4096. Keep all attempted intents,
+including ambiguous outcomes, across processes/restarts/logout. No reset/recovery
+command is implemented; do not silently clear markers. Read-only inspection and
+manual recovery are required rather than reissuing an uncertain mutation.
+
+Checked locally on Linux: 276 tests, including name JSON/CSRF headers, single
+dispatch, scope/ownership, stale/changed session, one-use/replayed/expired tickets,
+durable/concurrent duplicate claims, 419/redirect/network/invalid/read-back outcomes,
+and accepted/declined/unsupported host elicitation on legacy/automatic protocol
+connections. No live create/rename/upload/publication test was run. Native
+macOS/Windows/host UI verification remains outstanding.
 
 Sources: [app list](https://aurorarepos.ru/js/348.js),
 [release editor](https://aurorarepos.ru/js/439.js),

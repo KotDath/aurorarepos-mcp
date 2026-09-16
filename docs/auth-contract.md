@@ -46,7 +46,9 @@ removes the local session/key only, and must say so explicitly.
   is AES-256-GCM encrypted with random 96-bit nonce, 128-bit tag and fixed AAD
   binding it to version/profile/origin. Encryption uses Node's `node:crypto`.
 - `env-paths` selects the user's local data directory on all three OSes.
-  Only encrypted session data is stored there. POSIX directory/file modes
+  Session contents are encrypted; stage 6 additionally stores empty hashed
+  write-attempt markers in a separate subdirectory, never account payloads.
+  POSIX directory/file modes
   are 0700/0600; Windows relies on the user's local data-directory ACL and
   encryption. Refuse symlink targets, bound reads, atomically replace files
   and reject concurrent writes with a lock. Do not overwrite corrupt sessions.

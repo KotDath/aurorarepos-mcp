@@ -43,14 +43,20 @@ only. Stage 5 adds synthetic RPM parser/path/checksum/mutation/cancellation
 tests and real stdio preflight calls with legacy/automatic negotiation. No
 existing SDK-built RPM has been read. Directory allowlisting was removed at the
 user's request; links and arbitrary absolute RPM paths work without configuration.
-The full local suite has 236 passing tests.
+The first slice of stage 6 implements `create_app`/`rename_my_app`, exact-user
+form elicitation on both protocol eras, bounded one-use state-bound tickets,
+durable duplicate-attempt markers and read-back reconciliation. HTTP/form tests
+are synthetic; no live app-card write has been performed. Multipart uploads,
+complete release edits, scheduling and review/publication are not implemented.
+The full local suite has 276 passing tests.
 The file-symlink test is skipped on Windows, where junctions
 are tested instead.
 
 Each completed stage gets a local commit after appropriate checks. No push
-or external publishing is implied. Stage 6 confirmed writes remains deferred;
-it requires separate contract discovery and approval enforcement, and must never
-treat a stage 5 preview or its hash as upload authorization.
+or external publishing is implied. Stage 6 is **partially implemented**, not complete:
+its remaining operations require full multipart/preservation/status contract
+verification and an explicitly approved live test target. Never treat a stage 5
+preview or its hash as upload authorization. Stage 7/8 remain deferred.
 
 SDK 2.0.0 is published as `@modelcontextprotocol/server`, Node >=20.
 Use Node >=22 here. The 2026-07-28 HTTP spec removes protocol-level sessions
