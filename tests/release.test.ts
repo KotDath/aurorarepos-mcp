@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { mkdtemp, writeFile, rm, mkdir, symlink, link, truncate, appendFile } from 'node:fs/promises';
 import * as fs from 'node:fs/promises';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readRpm } from '../src/release/rpm.js';
-import { allowedRoots, envRoots, localAbsolute, MAX_FILE_BYTES } from '../src/release/files.js';
+import { localAbsolute, MAX_FILE_BYTES } from '../src/release/files.js';
 import { ReleaseService } from '../src/release/service.js';
 import { prepareOutput, warningCodes } from '../src/release/schemas.js';
 import { intTag, stringTag, syntheticRpm } from './release-helpers.js';
@@ -69,11 +69,11 @@ describe('bounded RPM structural metadata parser', () => {
   });
 });
 
-describe('local release policy and preview', () => {
-  let directory: string, roots: string[], service: ReleaseService;
+describe('local release paths and preview', () => {
+  let directory: string, service: ReleaseService;
   beforeEach(async () => {
     directory = await mkdtemp(path.join(tmpdir(), 'aurorarepos-release-test-'));
-    roots = [directory]; service = new ReleaseService(() => roots);
+    service = new ReleaseService();
   });
   afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await rm(directory, { recursive: true, force: true }); });
   async function file(name = 'test.rpm', options: Parameters<typeof syntheticRpm>[0] = {}) {
@@ -99,48 +99,44 @@ describe('local release policy and preview', () => {
     await expect(service.prepare({ rpm64_path: target, aurora_versions: [5] })).rejects.toMatchObject({ code: 'UNSUPPORTED_RPM' });
     await expect(service.prepare({ rpm32_path: target, rpm64_path: target, aurora_versions: [5] })).rejects.toMatchObject({ code: 'UNSUPPORTED_RPM' });
   });
-  it('defaults to disabled reads, handles malformed configuration and never returns policy paths', async () => {
-    vi.stubEnv('AURORAREPOS_RPM_ROOTS', ''); const { target } = await file();
-    await expect(new ReleaseService().prepare({ rpm32_path: target, aurora_versions: [5] })).rejects.toMatchObject({ code: 'FILE_ACCESS_DISABLED' });
-    vi.stubEnv('AURORAREPOS_RPM_ROOTS', '{bad'); expect(() => envRoots()).toThrow('Invalid local RPM directory policy');
-    vi.stubEnv('AURORAREPOS_RPM_ROOTS', JSON.stringify([directory])); expect(envRoots()).toEqual([directory]);
-  });
-  it.each([null, 'root', ['relative'], Array(9).fill('/dedicated'), [path.parse(tmpdir()).root], [homedir()]])('rejects invalid policy %j', async (policy) => {
-    await expect(allowedRoots(policy, new AbortController().signal)).rejects.toMatchObject({ code: 'INVALID_FILE_POLICY' });
+  it.each(['', '{bad', '["/unrelated/directory"]'])('requires no directory configuration and ignores obsolete roots value %j', async (value) => {
+    vi.stubEnv('AURORAREPOS_RPM_ROOTS', value); const { target } = await file();
+    expect((await new ReleaseService().prepare({ rpm32_path: target, aurora_versions: [5] })).packages).toHaveLength(1);
   });
   it.each([{}, { rpm32_path: '/test.rpm' }, { rpm32_path: '/test.rpm', aurora_versions: [3] },
     { rpm32_path: '/test.rpm', aurora_versions: [5, 5] }, { rpm32_path: '/test.rpm', aurora_versions: [5], roots: ['/'] },
-    { rpm32_path: '/test.rpm', aurora_versions: [5], app_id: -1 }, { rpm32_path: '/test.rpm', aurora_versions: [5], release_notes: 'a'.repeat(4001) }])('rejects invalid arguments before policy access', async (input) => {
-    const policy = vi.fn(() => roots);
-    await expect(new ReleaseService(policy).prepare(input)).rejects.toMatchObject({ code: 'INVALID_RELEASE_INPUT' }); expect(policy).not.toHaveBeenCalled();
+    { rpm32_path: '/test.rpm', aurora_versions: [5], app_id: -1 }, { rpm32_path: '/test.rpm', aurora_versions: [5], release_notes: 'a'.repeat(4001) }])('rejects invalid arguments before file access', async (input) => {
+    const read = vi.spyOn(fs, 'open');
+    await expect(new ReleaseService().prepare(input)).rejects.toMatchObject({ code: 'INVALID_RELEASE_INPUT' }); expect(read).not.toHaveBeenCalled();
   });
-  it('rejects outside/sibling-prefix/traversal/non-RPM/directory paths', async () => {
+  it('rejects non-RPM/directory/relative paths', async () => {
     const { target } = await file('test.txt'); await mkdir(path.join(directory, 'folder.rpm'));
-    for (const candidate of [path.join(directory, '..', 'outside.rpm'), `${directory}-sibling/file.rpm`, `${directory}${path.sep}..${path.sep}file.rpm`, target, path.join(directory, 'folder.rpm'), 'relative.rpm']) {
+    for (const candidate of [target, path.join(directory, 'folder.rpm'), 'relative.rpm']) {
       await expect(service.prepare({ rpm32_path: candidate, aurora_versions: [5] })).rejects.toMatchObject({ code: 'FILE_NOT_ALLOWED' });
     }
   });
-  it('rejects hardlinks and absent files with safe errors', async () => {
+  it('accepts hardlinks and reports absent files with safe errors', async () => {
     const { target } = await file(); const linked = path.join(directory, 'hard.rpm'); await link(target, linked);
-    await expect(service.prepare({ rpm32_path: linked, aurora_versions: [5] })).rejects.toMatchObject({ code: 'FILE_NOT_ALLOWED' });
+    expect((await service.prepare({ rpm32_path: linked, aurora_versions: [5] })).packages).toHaveLength(1);
     await expect(service.prepare({ rpm32_path: path.join(directory, 'missing.rpm'), aurora_versions: [5] })).rejects.toMatchObject({ code: 'FILE_READ_FAILED' });
   });
-  it.skipIf(process.platform === 'win32')('rejects file symlinks even to an allowed package', async () => {
+  it.skipIf(process.platform === 'win32')('resolves file symlinks to RPMs', async () => {
     const { target } = await file(); const linked = path.join(directory, 'symbolic.rpm'); await symlink(target, linked);
-    await expect(service.prepare({ rpm32_path: linked, aurora_versions: [5] })).rejects.toMatchObject({ code: 'FILE_NOT_ALLOWED' });
+    expect((await service.prepare({ rpm32_path: linked, aurora_versions: [5] })).packages[0]?.filename).toBe('symbolic.rpm');
   });
-  it('rejects directory symlinks/junctions below an allowed root', async () => {
+  it('accepts directory symlinks/junctions and normalized absolute paths', async () => {
     await mkdir(path.join(directory, 'actual')); const { bytes } = syntheticRpm(); await writeFile(path.join(directory, 'actual', 'test.rpm'), bytes);
     await symlink(path.join(directory, 'actual'), path.join(directory, 'alias'), process.platform === 'win32' ? 'junction' : 'dir');
-    await expect(service.prepare({ rpm32_path: path.join(directory, 'alias', 'test.rpm'), aurora_versions: [5] })).rejects.toMatchObject({ code: 'FILE_NOT_ALLOWED' });
+    expect((await service.prepare({ rpm32_path: path.join(directory, 'alias', 'test.rpm'), aurora_versions: [5] })).packages).toHaveLength(1);
+    expect((await service.prepare({ rpm32_path: `${directory}${path.sep}actual${path.sep}..${path.sep}actual${path.sep}test.rpm`, aurora_versions: [5] })).packages).toHaveLength(1);
   });
   it('rejects oversized sparse files before parsing', async () => {
     const { target } = await file(); await truncate(target, MAX_FILE_BYTES + 1);
     await expect(service.prepare({ rpm32_path: target, aurora_versions: [5] })).rejects.toMatchObject({ code: 'FILE_TOO_LARGE' });
   });
-  it('honors cancellation before accessing the filesystem policy', async () => {
-    const policy = vi.fn(() => roots), controller = new AbortController(); controller.abort();
-    await expect(new ReleaseService(policy).prepare({ rpm32_path: '/test.rpm', aurora_versions: [5] }, controller.signal)).rejects.toMatchObject({ code: 'CANCELLED' }); expect(policy).not.toHaveBeenCalled();
+  it('honors cancellation before accessing the filesystem', async () => {
+    const read = vi.spyOn(fs, 'open'), controller = new AbortController(); controller.abort();
+    await expect(new ReleaseService().prepare({ rpm32_path: '/test.rpm', aurora_versions: [5] }, controller.signal)).rejects.toMatchObject({ code: 'CANCELLED' }); expect(read).not.toHaveBeenCalled();
   });
   it('detects a file mutation during reading and closes the descriptor', async () => {
     const { target } = await file(); const original = fs.open;
@@ -158,7 +154,7 @@ describe('local release policy and preview', () => {
   });
   it('returns a timeout even when a filesystem lookup stalls', async () => {
     vi.spyOn(fs, 'realpath').mockImplementation(() => new Promise<string>(() => {}));
-    await expect(new ReleaseService(() => roots, 10).prepare({ rpm32_path: path.join(directory, 'test.rpm'), aurora_versions: [5] })).rejects.toMatchObject({ code: 'TIMEOUT' });
+    await expect(new ReleaseService(10).prepare({ rpm32_path: path.join(directory, 'test.rpm'), aurora_versions: [5] })).rejects.toMatchObject({ code: 'TIMEOUT' });
   });
   it('serializes local operations and supports cancellation while queued', async () => {
     const { target } = await file(), original = fs.open;
@@ -173,10 +169,9 @@ describe('local release policy and preview', () => {
     await service.prepare(input); expect(open).toHaveBeenCalledTimes(2);
   });
   it.each([
-    ['C:\\build\\test.rpm', 'win32', true], ['C:/build/test.rpm', 'win32', true], ['C:\\build\\test.rpm:secret', 'win32', false],
-    ['\\\\server\\share\\test.rpm', 'win32', false], ['\\\\?\\C:\\test.rpm', 'win32', false], ['C:relative.rpm', 'win32', false],
-    ['C:\\build\\CON.rpm', 'win32', false], ['C:\\build\\NUL', 'win32', false], ['C:\\build.\\test.rpm', 'win32', false],
-    ['/build/test.rpm', 'linux', true], ['/build/../test.rpm', 'linux', false], ['//server/share/test.rpm', 'linux', false], ['/build/./test.rpm', 'linux', false],
+    ['C:\\build\\test.rpm', 'win32', true], ['C:/build/test.rpm', 'win32', true],
+    ['\\\\server\\share\\test.rpm', 'win32', true], ['\\\\?\\C:\\test.rpm', 'win32', true], ['C:relative.rpm', 'win32', false],
+    ['/build/test.rpm', 'linux', true], ['/build/../test.rpm', 'linux', true], ['//server/share/test.rpm', 'linux', true], ['/build/./test.rpm', 'linux', true],
   ] as const)('checks local path syntax %s on %s', (candidate, platform, expected) => {
     expect(localAbsolute(candidate, platform)).toBe(expected);
   });

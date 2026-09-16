@@ -20,8 +20,8 @@ describe('local release preparation over MCP', () => {
     directory = await mkdtemp(path.join(tmpdir(), 'aurorarepos-preflight-protocol-'));
     rpm = path.join(directory, 'test.rpm'); bytes = syntheticRpm().bytes; await writeFile(rpm, bytes);
   });
-  afterEach(async () => { vi.restoreAllMocks(); await rm(directory, { recursive: true, force: true }); });
-  async function connect(release = new ReleaseService(() => [directory])) {
+  afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await rm(directory, { recursive: true, force: true }); });
+  async function connect(release = new ReleaseService()) {
     const fetch = vi.fn(async () => { throw Error('Unexpected HTTP'); }), auth = new AuthService();
     const load = vi.spyOn(auth.store, 'load').mockRejectedValue(Error('Unexpected vault access'));
     const server = createServer(new AuroraService(new AuroraClient({ fetch })), auth, undefined, release);
@@ -41,21 +41,22 @@ describe('local release preparation over MCP', () => {
       expect(await readdir(directory)).toEqual(['test.rpm']); expect(await readFile(rpm)).toEqual(bytes);
     } finally { await client.close(); await server.close(); }
   });
-  it.each([[], 'invalid'] as const)('sanitizes disabled/invalid file policy %j without affecting tool discovery', async (policy) => {
-    const { client, server, fetch, load } = await connect(new ReleaseService(() => policy));
+  it.each(['', '{bad', '["/unrelated"]'])('accepts absolute RPM paths without directory configuration (%j)', async (value) => {
+    vi.stubEnv('AURORAREPOS_RPM_ROOTS', value);
+    const { client, server, fetch, load } = await connect();
     try {
       expect((await client.listTools()).tools).toHaveLength(12);
       const result = await client.callTool({ name: 'prepare_release', arguments: { rpm32_path: rpm, aurora_versions: [5] } });
-      expect(result.isError).toBe(true); expect(JSON.stringify(result)).toContain(Array.isArray(policy) ? 'FILE_ACCESS_DISABLED' : 'INVALID_FILE_POLICY');
-      expect(result.structuredContent).toBeUndefined(); expect(JSON.stringify(result)).not.toContain(directory);
+      expect(result.isError).not.toBe(true); expect(prepareOutput.parse(result.structuredContent).packages).toHaveLength(1);
+      expect(JSON.stringify(result)).not.toContain(directory);
       expect(fetch).not.toHaveBeenCalled(); expect(load).not.toHaveBeenCalled();
     } finally { await client.close(); await server.close(); }
   });
-  it('refuses outside paths and input policy/owner/approval overrides without echoing them', async () => {
+  it('sanitizes missing paths and refuses unknown owner/approval arguments without echoing them', async () => {
     const { client, server, fetch, load } = await connect();
     try {
       const outside = await client.callTool({ name: 'prepare_release', arguments: { rpm32_path: path.join(tmpdir(), 'PRIVATE_PATH.rpm'), aurora_versions: [5] } });
-      expect(outside.isError).toBe(true); expect(JSON.stringify(outside)).toContain('FILE_NOT_ALLOWED'); expect(JSON.stringify(outside)).not.toContain('PRIVATE_PATH');
+      expect(outside.isError).toBe(true); expect(JSON.stringify(outside)).toContain('FILE_READ_FAILED'); expect(JSON.stringify(outside)).not.toContain('PRIVATE_PATH');
       const invalid = await client.callTool({ name: 'prepare_release', arguments: { rpm32_path: rpm, aurora_versions: [5], roots: ['/'], user_id: 999, approval_token: 'PRIVATE_APPROVAL' } });
       expect(invalid.isError).toBe(true); expect(JSON.stringify(invalid)).not.toContain('PRIVATE_APPROVAL'); expect(JSON.stringify(invalid)).not.toContain(directory);
       expect(fetch).not.toHaveBeenCalled(); expect(load).not.toHaveBeenCalled();
@@ -64,7 +65,7 @@ describe('local release preparation over MCP', () => {
   it.each(['legacy', 'auto'] as const)('prepares a synthetic RPM in a real stdio subprocess (%s)', async (mode) => {
     const client = new Client({ name: 'release-stdio-test', version: '1.0.0' }, { versionNegotiation: { mode } });
     const transport = new StdioClientTransport({ command: process.execPath, args: [fileURLToPath(new URL('../dist/index.js', import.meta.url))],
-      env: { AURORAREPOS_RPM_ROOTS: JSON.stringify([directory]) }, stderr: 'pipe' });
+      stderr: 'pipe' });
     const errors: string[] = []; transport.onerror = (error) => errors.push(error.message);
     try {
       await client.connect(transport); expect((await client.listTools()).tools).toHaveLength(12);

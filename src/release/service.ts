@@ -1,12 +1,12 @@
 import { plain } from '../aurora/normalize.js';
 import { abortable, RequestGate } from '../aurora/gate.js';
-import { allowedRoots, checkSignal, envRoots, readPackage } from './files.js';
+import { checkSignal, readPackage } from './files.js';
 import { ReleaseError } from './errors.js';
 import * as s from './schemas.js';
 
 export class ReleaseService {
   private readonly gate = new RequestGate(0, 1);
-  constructor(private readonly policy: () => unknown = envRoots, private readonly timeoutMs = 30_000) {}
+  constructor(private readonly timeoutMs = 30_000) {}
   async prepare(raw: unknown, signal?: AbortSignal) {
     const result = s.prepareInput.safeParse(raw);
     if (!result.success) throw new ReleaseError('INVALID_RELEASE_INPUT');
@@ -14,11 +14,11 @@ export class ReleaseService {
     checkSignal(timed);
     return abortable(this.gate.run(async () => {
       checkSignal(timed);
-      const roots = await allowedRoots(this.policy(), timed), input = result.data;
+      const input = result.data;
       const packages = [];
       for (const slot of ['rpm32', 'rpm64'] as const) {
         const file = input[`${slot}_path`]; if (!file) continue;
-        const pkg = await readPackage(file, roots, timed);
+        const pkg = await readPackage(file, timed);
         if (pkg.metadata.arch !== (slot === 'rpm32' ? 'armv7hl' : 'aarch64')) throw new ReleaseError('UNSUPPORTED_RPM');
         packages.push({ slot, ...pkg });
       }

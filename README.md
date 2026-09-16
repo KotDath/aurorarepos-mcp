@@ -158,24 +158,11 @@ Account login and fresh-process CLI/MCP verification were also checked on Linux.
 
 ## Local release preparation
 
-`prepare_release` needs no login and makes no website request. Local file reads
-are **disabled by default**. The server operator must explicitly configure
-dedicated build directories through `AURORAREPOS_RPM_ROOTS`: a JSON array of
-absolute directory paths, not a tool argument. For example, add to the MCP
-server's configuration (replace the placeholder with your own build directory):
-
-```json
-{
-  "env": {
-    "AURORAREPOS_RPM_ROOTS": "[\"/absolute/path/to/build/RPMS\"]"
-  }
-}
-```
-
-On Windows use JSON-safe paths such as `C:/projects/app/build/RPMS`. Restart the
-server after changing its environment. Up to eight roots; volume roots and the
-home directory itself are refused. Use trusted dedicated directories, not broad
-shared trees. There is no disk search or automatic grant based on MCP host roots.
+`prepare_release` needs no login and makes no website request. Pass any absolute
+path to a RPM accessible to the server's OS user; no directory configuration is
+needed. Symlinks and hardlinks are accepted. On Windows use JSON-safe paths such
+as `C:/projects/app/build/RPMS/app.rpm`. The old `AURORAREPOS_RPM_ROOTS` setting is
+no longer used and can be removed. There is no disk search.
 
 Example call with one or both architecture slots:
 
@@ -196,8 +183,8 @@ At least one RPM is required. `rpm32` must contain `armv7hl`, `rpm64` must conta
 `aarch64`; paired name/epoch/version/release must match. Only traditional binary
 RPM v4-style packages are supported; source, x86, `noarch` and RPM v6 are refused.
 Limits: 256 MiB/file, two files, bounded headers, 30-second operation deadline,
-one local operation at a time. Files/descendant directories cannot be symlinks;
-hardlinked files and changes detected during reading are refused.
+one local operation at a time. The resolved target must be a regular file;
+changes detected during reading are refused so metadata/checksums stay consistent.
 
 The preview contains basenames, allowlisted metadata, complete-file SHA-256,
 plain release notes and explicit verification warnings. It is not persisted;
@@ -209,8 +196,8 @@ verification or upload approval. Future writes must recheck the files and target
 
 The local preflight is tested with synthetic packages, including real stdio calls.
 No existing SDK-built package was searched for or read during implementation.
-Portable path checks are not a race-free sandbox against hostile local directory
-replacement: keep allowed directories trusted and use an OS sandbox when needed.
+There is no directory sandbox: the tool can read RPMs anywhere the server's OS
+user can access them, including paths reached through filesystem links.
 See [release preparation security boundary](docs/release-preparation.md).
 
 ## Development
@@ -285,8 +272,8 @@ and older-release selection are covered by synthetic fixtures, not live accounts
 - Developer endpoints use authenticated GET only, with a separate shared HTTP
   gate from anonymous tools. Private payloads are not saved; owner/contact/token
   fields are checked internally where needed but never returned.
-- Local release preparation has an independent one-operation gate and deny-by-
-  default directory policy; it never accesses the account or network. Its checks
+- Local release preparation has an independent one-operation gate and accepts
+  arbitrary absolute RPM paths; it never accesses the account or HTTP. Its checks
   do not establish trusted signatures, installability or user approval.
 
 ## Layout
@@ -297,7 +284,7 @@ src/server.ts          MCP factory
 src/tools/             registration and safe result formatting
 src/auth/              interactive CLI, account client, encrypted session/vault
 src/developer/         caller-owned reads, runtime schemas and normalization
-src/release/           local directory policy, bounded RPM preflight and preview
+src/release/           local RPM reads, bounded preflight and preview
 src/aurora/client.ts   fixed endpoints, guest cookies/CSRF, bounded HTTP
 src/aurora/gate.ts     rate/concurrency/cancellation
 src/aurora/service.ts  API parsing and public operations

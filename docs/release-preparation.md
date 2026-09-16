@@ -5,32 +5,30 @@ access, HTTP, upload, signing, installation, extraction, subprocesses or file
 writes. No approval token or durable upload capability is produced. Stage 6
 must independently revalidate ownership, file bytes and explicit approval.
 
-## Inputs and operator policy
+## Inputs and filesystem access
 
-The operator sets `AURORAREPOS_RPM_ROOTS` to a JSON array of up to eight absolute
-dedicated build directories in the server's environment. Empty/missing policy
-disables preparation. Invalid policies fail the tool without breaking public
-reads. Volume roots, the user's home itself, UNC/device paths are refused.
-Never accept roots, arbitrary URLs or an owner override as tool arguments.
+At the user's explicit request, preparation accepts any absolute RPM path
+accessible to the server's OS user. No directory allowlist or opt-in environment
+setting. `AURORAREPOS_RPM_ROOTS` is obsolete and ignored. This is not a directory
+sandbox. Paths are OS filesystem paths, not arbitrary HTTP URLs; no owner
+override is accepted as a tool argument.
 
 Inputs: `rpm32_path` and/or `rpm64_path` (absolute local paths), explicitly
 selected `aurora_versions` (4 and/or 5), optional target `app_id`, and bounded
 plain-text `release_notes`. Target/OS selections are **user declarations**, not
 proof of ownership or compatibility. The app ID is not queried or trusted.
 
-Files must be regular, single-link `.rpm` files contained within an explicitly
-allowed canonical root. Refuse symlinks below that root, traversal components,
-Windows alternate streams, non-local path syntax and sibling-prefix escapes.
-Open read-only, use no-follow where available, compare file identity/size/times
-before and after reading and revalidate path/root identity. Do not search disk.
+Files must resolve to regular `.rpm` files. Symlinks, directory links, hardlinks
+and absolute paths containing normalization components are accepted. Resolve
+the path and open read-only; compare file identity/size/times before and after
+reading and check that the path still resolves to the same target. These are
+checksum/metadata consistency checks, not directory authorization. Do not search disk.
 Output only bounded basenames/allowlisted package fields, never full paths,
 payload, scriptlets, packager/contact values or unknown header tags.
 
-These checks reduce accidental/path-based exposure, but portable Node APIs do
-not give a race-free open-beneath sandbox against hostile concurrent directory
-replacement on every OS. Use dedicated, trusted build directories owned by
-the operator; hostile local users/malware require an OS sandbox. Configured
-network-mounted directories are the operator's responsibility.
+Access is determined by OS permissions, including for mounted/network filesystem
+paths. Portable Node APIs do not provide a race-free sandbox against hostile
+concurrent file/directory replacement; no such isolation is claimed.
 
 ## Bounded structural preflight
 
@@ -65,8 +63,8 @@ RPM's documentation recommends librpm for full verification; the portable parser
 here intentionally does not claim that scope. Test data must remain synthetic;
 no search for or reading of the user's existing packages is implied.
 
-Implemented and checked locally on Linux: synthetic parser/policy/checksum/
+Implemented and checked locally on Linux: synthetic parser/path/checksum/
 mutation/cancellation tests, schema-valid MCP calls and real stdio subprocesses
-with legacy and automatic negotiation. Full local suite: 243 passing tests.
+with legacy and automatic negotiation, without directory configuration.
 Native macOS/Windows execution and an SDK-built RPM preflight remain unverified;
 CI is configured for those OSes but has not been dispatched externally here.
