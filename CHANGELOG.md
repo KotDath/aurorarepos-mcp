@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.1.0 — local release candidate (not externally published)
+## 1.0.0
+
+- Russian README with installation, account login, usage examples and setup
+  guides for OpenCode, Claude Code, Codex, Oh My Pi and ZCode.
 
 - TypeScript SDK v2 stdio server with six anonymous catalog tools and strict
   schemas/structured results; guest/account cookie isolation and bounded reads.
