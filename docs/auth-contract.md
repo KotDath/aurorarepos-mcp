@@ -9,11 +9,16 @@ Observed anonymously on 2026-09-16 in the site's public login frontend:
   six-character code. The temporary token is not a publisher API token.
 - `POST /api/2fa/resend`: JSON `{token}`; never automatically called.
 - `GET /api/getrole`: used by the developer frontend, which compares the
-  returned JSON string with `admin`. Anonymous GET returned 401. Use this
+  returned string with `admin`. Anonymous GET returned 401. Use this
   small, read-only protected endpoint to verify a session; never treat a
   successful login HTTP status alone as proof of authentication.
 
-Successful account login and 2FA are not yet live-verified. Do not print
+Account login, encrypted persistence, a fresh CLI process and the MCP
+`auth_status({verify:true})` call are now live-verified on Linux. The role
+check must accept a plain-text identifier as well as a JSON string, without
+accepting HTML pages. The login checked did not require a 2FA challenge;
+2FA/resend remain mock-tested, not live-verified. No account identity or
+credentials are included in this document. Do not print
 raw responses, cookies, passwords, temporary tokens, email addresses or
 request bodies. Tests use synthetic values, never live account credentials.
 No upload, publication, profile mutation, 2FA configuration or password change
@@ -26,6 +31,11 @@ removes the local session/key only, and must say so explicitly.
   variables, piped credentials, MCP input arguments or browser-cookie imports.
 - Password/code are hidden; neither is persisted. Login POST is not retried
   after ambiguous errors. One retry after a rejected 419 refreshes CSRF only.
+- Match the frontend's `X-Requested-With: XMLHttpRequest` header. Never follow
+  account POST redirects, and never forward credentials to Location. 302/303
+  responses are only candidate success; ignore Location entirely and check
+  the session using a separate fixed HTTPS GET. Reject 301/307/308 and resend
+  redirects. A login redirect alone is not proof of authentication.
 - Authenticated and anonymous clients have separate cookie jars. Public MCP
   tools do not acquire account privileges merely because a session exists.
 - `@napi-rs/keyring` accesses macOS Keychain / Windows Credential Manager /
@@ -44,6 +54,12 @@ removes the local session/key only, and must say so explicitly.
   expired/invalid session; 403 indicates denied access, not necessarily expiry.
   No password is available for automatic relogin. Network errors cannot
   establish that a session has expired.
+- Linux stdio hosts may sanitize D-Bus/XDG variables. If no explicit address
+  exists, discover only the existing user's private runtime directory and
+  user-owned `bus` socket (`XDG_RUNTIME_DIR`, or `/run/user/<uid>`). Refuse
+  symlinks/unsafe ownership/modes; never autolaunch a bus. Explicit addresses
+  are not replaced. Pass any custom `XDG_DATA_HOME`/session-bus environment
+  from the host to ensure CLI and MCP use the same data directory and vault.
 
 Native keyring write/read/delete was checked on Linux using a random test
 entry that was deleted afterward. macOS/Windows require their own opt-in

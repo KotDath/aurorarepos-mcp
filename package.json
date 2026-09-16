@@ -2,7 +2,7 @@
   "name": "aurorarepos-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Anonymous read-only MCP server for Aurora Repos",
+  "description": "Read-only MCP server for Aurora Repos with secure local account sessions",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@10.33.0",
@@ -25,7 +25,8 @@
     "start": "node dist/index.js",
     "test": "pnpm build && vitest run",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
-    "smoke:live": "pnpm build && tsx scripts/live-smoke.ts"
+    "smoke:live": "pnpm build && tsx scripts/live-smoke.ts",
+    "smoke:keyring": "tsx scripts/keyring-smoke.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",

@@ -1,9 +1,9 @@
 # aurorarepos-mcp
 
 Unofficial local TypeScript MCP server for <https://aurorarepos.ru/>.
-Stages 0–2 are implemented: observed API contract, SDK v2 stdio scaffold and
-anonymous read-only tools. No account login, uploads, publication, deletion,
-package installation or binary downloads.
+Stages 0–3 are implemented: observed API contract, SDK v2 stdio scaffold,
+anonymous read-only tools and secure out-of-band account login/session status.
+No uploads, publication, app deletion, package installation or binary downloads.
 
 ## Tools
 
@@ -15,6 +15,7 @@ package installation or binary downloads.
 | `list_categories` | Category IDs/names for search | `aurora_version` |
 | `list_systems` | Available OS versions and website IDs | none |
 | `list_author_apps` | Public apps by author, locally paginated | `author_id`, `page`, `page_size` |
+| `auth_status` | Local account state; optionally verify against the site | `verify` (default false) |
 
 `aurora_version` is the OS major version **4 or 5** (default **5**), not the
 website's system ID. Pagination defaults to page 1 / 10 items, maximum 20
@@ -56,10 +57,81 @@ to `dist/index.js`. Example shape (adapt to your host's configuration format):
 }
 ```
 
-No API key, password, cookies or environment variables are needed. Use an
+Public tools need no API key, password, cookies or environment variables. Use an
 absolute `node` executable path as well if your host does not inherit PATH.
 The CLI supports `--help` / `--version` on stderr; normal startup emits no
 non-protocol stdout. This package remains private until release preparation.
+
+## Account login (optional)
+
+Run in your **own interactive terminal**, never send credentials to a model:
+
+```sh
+node dist/index.js auth login
+node dist/index.js auth status
+node dist/index.js auth status --verify
+node dist/index.js auth logout
+```
+
+Email/password and any six-digit 2FA code are entered without echo. Login
+refuses credential flags, environment variables and pipes. A protected read
+checks authentication before saving. No password/2FA code is persisted. JSON
+output and prompts go to stderr, not protocol stdout. Resending a code requires
+explicitly typing `resend` at the 2FA prompt; no automated resend/relogin.
+
+`auth_status` defaults to a local check: `stored` **does not prove** that the
+session is valid. `verify=true` makes a protected read, distinguishing verified
+authentication, 401 expiry and 403 access denial. Network/storage failures are
+errors, not a claim that you are logged out. Public tools always use an isolated
+anonymous cookie jar, including after login; developer tools remain stage 4.
+
+### Cross-platform secure storage
+
+`@napi-rs/keyring` stores a random encryption key in macOS Keychain, Windows
+Credential Manager or Linux Secret Service. Cookies are stored in an authenticated
+AES-256-GCM encrypted file, with a fresh nonce per save, outside the repository:
+
+- macOS: `~/Library/Application Support/aurorarepos-mcp/auth/`
+- Windows: `%LOCALAPPDATA%\\aurorarepos-mcp\\Data\\auth\\`
+- Linux: `$XDG_DATA_HOME/aurorarepos-mcp/auth/`, default `~/.local/share/aurorarepos-mcp/auth/`
+
+Linux requires an unlocked Secret Service provider (e.g. GNOME Keyring) and
+its session D-Bus connection. SSH/headless/containers may not have one. We
+explicitly disable automatic kernel-keyring fallback. A locked/unavailable
+vault is an error; **there is no plaintext fallback** on any OS. OS vault access
+may require user interaction. Account processes must share the same OS user,
+vault and data directory. This is not protection against a compromised account
+or malware that can access the unlocked vault.
+
+Some stdio hosts sanitize environment variables. When no explicit D-Bus address
+is provided, Linux discovers only an existing user-owned `bus` socket in a
+private owned `XDG_RUNTIME_DIR` (or `/run/user/<uid>`); it does not start a bus
+or override an explicit address. For custom setups, pass `DBUS_SESSION_BUS_ADDRESS`,
+`XDG_RUNTIME_DIR` and any custom `XDG_DATA_HOME` from your login environment
+through the host's stdio configuration. Do not pass passwords or all environment
+variables indiscriminately. The default SDK-sanitized Linux stdio environment
+has been live-tested with this discovery.
+
+POSIX files/directories use 0600/0700; Windows uses the local user-data directory's
+inherited ACL and encryption. Session data is bounded and validated, symlinks
+are refused, writes atomically replace encrypted data, and a lock rejects
+concurrent mutations. Do not delete `session.lock` without checking for a live
+writer. A corrupted session is not silently overwritten.
+
+Logout removes **only the local encrypted session and encryption key**. It
+does not revoke cookies on Aurora Repos: use the website's logout separately.
+Neither session data nor its key should be committed or sent to a model.
+
+Opt-in native keyring test (temporary random test entry, deleted afterward):
+
+```sh
+pnpm smoke:keyring
+```
+
+The native test has been checked locally on Linux. macOS/Windows checks must
+be run on those OSes; CI uses mocks and does not verify access to their vaults.
+Account login and fresh-process CLI/MCP verification were also checked on Linux.
+2FA/resend are covered by mocks, not yet checked against a live 2FA challenge.
 
 ## Development
 
@@ -88,7 +160,8 @@ pnpm dlx @modelcontextprotocol/inspector --cli node dist/index.js --method tools
 
 `pnpm check` runs lint, typecheck, build, mocked HTTP/service/protocol tests
 and real subprocess stdio handshakes (legacy + automatic negotiation). It
-does not access Aurora Repos. CI runs the same checks on Node 22 and 24.
+does not access Aurora Repos or an OS vault. CI is configured for Node 22/24
+on Linux/macOS/Windows; hosted CI has not been dispatched in this task.
 
 Explicit live smoke test, **accesses the website** using public read requests:
 
@@ -100,8 +173,11 @@ It checks all six tools, validates outputs and prints counts, not raw data.
 
 ## Safety/limits
 
-- Fixed `https://aurorarepos.ru` origin and public endpoints only. Redirects
-  are rejected; no arbitrary URL fetching or paginator-URL following.
+- Fixed `https://aurorarepos.ru` origin and explicitly allowlisted endpoints.
+  Public redirects are rejected; account POST redirects are never followed or
+  forwarded. Login 302/303 responses are only candidates: Location is ignored
+  entirely and a fixed HTTPS protected GET must verify the session before saving.
+  Other redirect statuses are rejected. No arbitrary URL fetching/paginator following.
 - Some public reads use POST and require guest CSRF. Guest cookies/token
   are established internally, kept in memory and never logged or returned.
 - 15-second per-request deadline (including queue wait), 2 MiB body limit,
@@ -121,7 +197,8 @@ It checks all six tools, validates outputs and prints counts, not raw data.
 ```text
 src/index.ts           stdio lifecycle
 src/server.ts          MCP factory
-src/tools/             schemas/registration and safe result formatting
+src/tools/             registration and safe result formatting
+src/auth/              interactive CLI, account client, encrypted session/vault
 src/aurora/client.ts   fixed endpoints, guest cookies/CSRF, bounded HTTP
 src/aurora/gate.ts     rate/concurrency/cancellation
 src/aurora/service.ts  API parsing and public operations
@@ -129,8 +206,10 @@ src/aurora/schemas.ts  runtime input/upstream/output schemas
 src/aurora/normalize.ts allowlisted fields, HTML and URL normalization
 tests/                 synthetic fixtures and HTTP/service/protocol tests
 scripts/live-smoke.ts  opt-in public live check
+scripts/keyring-smoke.ts opt-in native vault check
 ```
 
 See [observed API contract](docs/api-contract.md) and
+[authentication contract](docs/auth-contract.md), plus
 [implementation milestones](docs/implementation-plan.md).
 The website's internal API may change. This project is unofficial.

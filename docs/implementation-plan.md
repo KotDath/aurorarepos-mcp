@@ -24,13 +24,16 @@
 9. **Stage 8 — optional remote transport:** Streamable HTTP, separate MCP
    auth and Aurora auth, per-user isolation, Origin checks, compatibility.
 
-Stages 0–2 are now implemented. Local checks include lint, typecheck, build,
+Stages 0–3 are now implemented. Local checks include lint, typecheck, build,
 HTTP/service/protocol tests, real subprocess handshakes, Inspector CLI and
-an explicit anonymous live smoke check. CI configuration is provided; hosted
-CI has not been run locally or dispatched externally.
+an explicit anonymous live smoke check. Stage 3 additionally checks encrypted
+storage with a native Linux vault smoke test, account login and fresh-process
+CLI/MCP session verification. 2FA is mock-tested only. CI is configured for
+Linux/macOS/Windows and Node 22/24; native macOS/Windows vault integration has
+not been run here, and hosted CI has not been dispatched externally.
 
 Each completed stage gets a local commit after appropriate checks. No push
-or external publishing is implied. Stages 0–2 are the current scope.
+or external publishing is implied. Stage 4 developer reads remain deferred.
 
 SDK 2.0.0 is published as `@modelcontextprotocol/server`, Node >=20.
 Use Node >=22 here. The 2026-07-28 HTTP spec removes protocol-level sessions
