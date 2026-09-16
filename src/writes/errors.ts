@@ -9,6 +9,10 @@ const messages = {
   WRITE_JOURNAL_UNAVAILABLE: 'The local write-attempt journal is unavailable or full. No mutation was sent.',
   WRITE_OUTCOME_UNKNOWN: 'The write may have reached Aurora Repos, but its result could not be verified. Inspect using read tools; do not automatically retry.',
   INVALID_WRITE_INPUT: 'Invalid application write arguments.',
+  RELEASE_EXISTS: 'This app already has a release with this version, release and OS. No upload was sent.',
+  RELEASE_FILE_CHANGED: 'RPM bytes or metadata changed after confirmation. No upload was sent.',
+  EDITOR_CONTRACT_UNVERIFIED: 'Required editor fields or their preservation semantics could not be established. No mutation was sent.',
+  RELEASE_TARGET_MISMATCH: 'The RPM package name does not match existing package metadata for this application. No upload was sent.',
 } as const;
 export class WriteError extends Error {
   constructor(readonly code: keyof typeof messages) { super(messages[code]); this.name = 'WriteError'; }

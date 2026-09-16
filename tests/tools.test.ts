@@ -25,9 +25,9 @@ describe('MCP tools over a protocol connection', () => {
     const { client, server } = await connect();
     try {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps', 'auth_status', 'list_my_apps', 'get_my_app', 'list_my_app_versions', 'get_my_app_version', 'prepare_release', 'create_app', 'rename_my_app'].sort());
+      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps', 'auth_status', 'list_my_apps', 'get_my_app', 'list_my_app_versions', 'get_my_app_version', 'prepare_release', 'create_app', 'rename_my_app', 'upload_release', 'update_my_app_version', 'schedule_my_app_version'].sort());
       for (const tool of tools) {
-        const write = ['create_app', 'rename_my_app'].includes(tool.name);
+        const write = ['create_app', 'rename_my_app', 'upload_release', 'update_my_app_version', 'schedule_my_app_version'].includes(tool.name);
         expect(tool.annotations?.readOnlyHint).toBe(!write);
         expect(tool.annotations?.destructiveHint).toBe(write);
         expect(tool.inputSchema).toBeDefined();

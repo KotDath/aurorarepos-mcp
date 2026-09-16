@@ -83,6 +83,14 @@ export class AuroraClient {
     this.validId(id);
     return this.request(new URL(`/api/application/appitem/${id}`, ORIGIN), 'GET', undefined, signal);
   }
+  developerEditorName(id: number, signal?: AbortSignal): Promise<unknown> {
+    this.validId(id);
+    return this.request(new URL(`/api/application/name/${id}`, ORIGIN), 'GET', undefined, signal);
+  }
+  developerRelease(data: FormData, signal?: AbortSignal): Promise<unknown> {
+    if (!this.csrf) throw new AuroraError('CSRF_REJECTED');
+    return this.request(new URL('/api/application', ORIGIN), 'POST', data, signal);
+  }
   async prepareDeveloperWrite(signal?: AbortSignal): Promise<void> {
     await this.ensureGuest(signal ?? new AbortController().signal);
   }
@@ -128,13 +136,14 @@ export class AuroraClient {
     await abortable(this.bootstrap, signal);
   }
 
-  private async request(url: URL, method: 'GET' | 'POST', data?: object, signal?: AbortSignal, html = false, plain = false): Promise<unknown> {
+  private async request(url: URL, method: 'GET' | 'POST', data?: object | FormData, signal?: AbortSignal, html = false, plain = false): Promise<unknown> {
     if (url.origin !== ORIGIN) throw new AuroraError('ACCESS_DENIED');
     const cancellation = signal ?? new AbortController().signal;
     for (let attempt = 0; attempt < 2; attempt++) {
       let retryAfterMs = 500;
       try {
-        const timed = AbortSignal.any([cancellation, AbortSignal.timeout(this.timeoutMs)]);
+        const multipart = data instanceof FormData;
+        const timed = AbortSignal.any([cancellation, AbortSignal.timeout(multipart ? Math.max(this.timeoutMs, 120_000) : this.timeoutMs)]);
         return await this.gate.run(async () => {
           try {
             const headers = new Headers({
@@ -144,7 +153,7 @@ export class AuroraClient {
             const cookies = await this.jar.getCookieString(url.href);
             if (cookies) headers.set('Cookie', cookies);
             if (method === 'POST') {
-              headers.set('Content-Type', 'application/json');
+              if (!multipart) headers.set('Content-Type', 'application/json');
               headers.set('X-CSRF-TOKEN', this.csrf ?? '');
               headers.set('Origin', ORIGIN);
               headers.set('Referer', `${ORIGIN}/app`);
@@ -157,7 +166,7 @@ export class AuroraClient {
             if (url.pathname === '/api/getrole' || url.pathname.startsWith('/api/application')) headers.set('X-Requested-With', 'XMLHttpRequest');
             const response = await this.fetch(url, {
               method, headers, redirect: accountPost ? 'manual' : 'error', signal: timed,
-              ...(data ? { body: JSON.stringify(data) } : {}),
+              ...(data ? { body: multipart ? data : JSON.stringify(data) } : {}),
             });
             for (const cookie of response.headers.getSetCookie()) {
               await this.jar.setCookie(cookie, url.href, { ignoreError: true });

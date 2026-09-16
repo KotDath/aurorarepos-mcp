@@ -6,7 +6,7 @@ request, live account payload, RPM upload or publication was made during discove
 | Action | Observed request | Evidence / gap |
 | --- | --- | --- |
 | Create/rename app card | `POST /api/application/appname`, JSON form `id,name` | list frontend: empty id for create, app id for rename; reloads catalog on success |
-| Add release to an app | `POST /api/application`, multipart | editor uses `app_id`, `file_rpm`, `file_rpm64`, name/description/category/version/system/release, icon/screenshots and shared contact/owner/flag fields |
+| Add release to an app | `POST /api/application`, multipart | source metadata from `GET /api/application/name/{app_id}`; uses `app_id`, `file_rpm`, `file_rpm64`, name/description/category/version/system/release, retained icon/screenshots and shared contact/owner/flag fields |
 | Edit release | same multipart endpoint with `id` = release id | editor sends complete shared app fields, retained screenshots and scheduling, without RPM replacement |
 | Schedule | `is_delayed` and `publish_at` in editor multipart | datetime-local string; server timezone, status transitions and actual scheduling behaviour not verified |
 | Review/publication | not identified in developer frontend | do not invent a status-changing endpoint based on numeric status codes |
@@ -17,11 +17,44 @@ Adding a release requires an icon in the editor. Creating a card is not creating
 a release or publishing it. A multipart metadata edit is not an isolated patch:
 omitting/reconstructing fields may unintentionally erase contact/screenshot data.
 
-## First implementation slice
+## Implemented operations
 
-Create/rename card is implemented and synthetic-tested first. Multipart uploads, metadata editing,
-scheduling and publication remain deferred until their complete contract and
-preservation semantics are established. Do not label this slice all of stage 6.
+Create/rename cards plus `upload_release`, `update_my_app_version` and
+`schedule_my_app_version` are implemented and synthetic-tested. The latter
+operations follow both source forms in bundle 439, without evaluating site code.
+Upload creates a NEW release of an existing fully configured app. Metadata edits
+preserve RPMs; scheduling sets editor flags, not status. There is no observed
+developer-side separate review/publication request: the server decides status.
+Admin publication override is intentionally absent.
+
+Required preservation fields must be present and valid in the editor response:
+name, description, category, system, site/donate/email, owner, icon, screenshots,
+validator/unofficial flags and schedule. Missing/unknown fields fail closed.
+Existing asset references must be same-origin `/image/` URLs without query/hash;
+no asset is downloaded or transformed. Fresh empty cards requiring initial
+icon/screenshots/contact setup must be configured using the website first;
+uploading/changing image assets and contact/beta management are not exposed.
+
+Uploads cap each file at 100,000,000 bytes (the website limit), use existing ARM
+preflight, reject mismatched pairs, Aurora-4-only 64-bit uploads, conflicting
+version/release/system and mismatched existing RPM package names. Both-OS system
+3 may include 64-bit, as allowed by the observed frontend. Approval includes
+exact basenames/checksums/version/OS/notes. At commit, immutable captured bytes
+are hashed from the same checked file handle and compared with the preview;
+FormData receives only those bytes. Node sets the multipart boundary. No retry
+or redirect is allowed, including CSRF errors. Dispatch has a 120-second deadline.
+
+Read-back verifies a unique new release, server SHA-256 for each uploaded slot,
+notes and unchanged shared/contact/media fields. Metadata/schedule edits verify
+the selected owned release and retain package references/digests/version/system.
+Any uncertain dispatch/reconciliation is `WRITE_OUTCOME_UNKNOWN`. Upload attempt
+markers are owner/app/OS/content-bound and survive relogin and filename changes.
+They are not approval tokens and must not be silently removed.
+
+Scheduling accepts/cancels `YYYY-MM-DDTHH:mm` website wall-clock values, checks
+calendar validity and does not guess the server timezone. Read-back verifies the
+stored flags/time, NOT execution of delayed publication. Outputs always expose
+`scheduling_timezone_verified=false` and observed publication state.
 
 Confirmation comes from MCP form elicitation, not a model-supplied `confirm=true`.
 SDK v2 `inputRequired` supports modern multi-round-trip and legacy shim flows.
@@ -50,7 +83,10 @@ including ambiguous outcomes, across processes/restarts/logout. No reset/recover
 command is implemented; do not silently clear markers. Read-only inspection and
 manual recovery are required rather than reissuing an uncertain mutation.
 
-Checked locally on Linux: 276 tests, including name JSON/CSRF headers, single
+Checked locally on Linux: 317 tests, including multipart payload/checksums,
+metadata/media preservation, escaped text, schedule validity, changed RPM/state,
+duplicate version/name/durable attempts, role checks, both-era form confirmation,
+and name JSON/CSRF headers, single
 dispatch, scope/ownership, stale/changed session, one-use/replayed/expired tickets,
 durable/concurrent duplicate claims, 419/redirect/network/invalid/read-back outcomes,
 and accepted/declined/unsupported host elicitation on legacy/automatic protocol

@@ -17,7 +17,7 @@ describe('built stdio entrypoint', () => {
       await client.connect(transport);
       expect(client.getServerVersion()).toMatchObject({ name: 'aurorarepos-mcp', version: '0.1.0' });
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(14);
+      expect(tools).toHaveLength(17);
       expect(errors).toEqual([]);
     } finally {
       await client.close();

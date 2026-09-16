@@ -96,6 +96,24 @@ export class DeveloperService {
     if (page !== 1 && !anchor.data[0] && value.data.length > 0) throw new AuroraError('OWNERSHIP_UNVERIFIED');
     return s.appsOutput.parse({ apps: value.data.map((app) => n.app(app, false)), pagination: pagination(value, page, page_size) });
   }
+  async versionsForWrite(client: AuthClient, app: App, signal: AbortSignal): Promise<Version[]> {
+    const rows: Version[] = [];
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const value = await this.versionsPage(client, app, page, 20, signal);
+      rows.push(...value.data);
+      if (page >= value.last_page) return rows;
+    }
+    throw new AuroraError('LOOKUP_LIMIT');
+  }
+  async editorForWrite(client: AuthClient, app: App, signal: AbortSignal, versionId?: number): Promise<unknown> {
+    if (versionId !== undefined) {
+      const rows = await this.versionsForWrite(client, app, signal);
+      if (!rows.some((row) => row.id === versionId)) throw new AuroraError('NOT_FOUND');
+    }
+    const raw = versionId === undefined ? await client.editorName(app.id, signal) : await client.version(versionId, signal);
+    validateApp(parse(s.rawApp, raw), app.user_id, app.id);
+    return raw;
+  }
   async app(raw: unknown, signal?: AbortSignal) {
     const { app_id } = s.appInput.parse(raw), timed = this.deadline(signal), client = await this.account(timed);
     const owned = await this.owned(client, app_id, timed);
