@@ -16,8 +16,10 @@
 - Clean-install archive smoke on both MCP protocol eras; CI matrix for
   Linux/macOS/Windows, Node 22/24. Native vault checks performed on Linux only.
 
-Live multipart writes, server timezone and delayed publication execution remain
-unverified until the explicit account/target test. Server decides publication/
+Live new-release multipart upload/publication was verified on the explicitly
+confirmed OpenTranslator 1.0.1 target: both hashes/shared metadata match and the
+release is visible anonymously. Metadata/schedule edits, server timezone and
+delayed execution remain unverified live. Server decides publication/
 moderation status; no separate developer publication endpoint or admin override
 is exposed. First releases on empty cards requiring icon/screenshots must be
 configured via the website. Contact, beta/tester and image-asset mutations are

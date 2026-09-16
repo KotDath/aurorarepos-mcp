@@ -90,7 +90,10 @@ and name JSON/CSRF headers, single
 dispatch, scope/ownership, stale/changed session, one-use/replayed/expired tickets,
 durable/concurrent duplicate claims, 419/redirect/network/invalid/read-back outcomes,
 and accepted/declined/unsupported host elicitation on legacy/automatic protocol
-connections. No live create/rename/upload/publication test was run. Native
+connections. One user-confirmed new-release upload was live-verified as published
+for OpenTranslator 1.0.1, including both hashes/shared field preservation and an
+anonymous public read. Create/rename and metadata/schedule edits remain synthetic
+only; delayed execution/timezone are unverified. See [live result](live-release-check.md). Native
 macOS/Windows/host UI verification remains outstanding.
 
 Sources: [app list](https://aurorarepos.ru/js/348.js),

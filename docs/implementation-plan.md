@@ -51,8 +51,10 @@ retry. Multipart follows both observed frontend forms; edits retain RPMs and
 all unchanged editor fields/media/contacts. Server decides publication status;
 no separate developer publication endpoint or admin override is exposed.
 Fresh empty cards requiring initial image/contact setup use the website first.
-Live multipart/preservation/status verification and actual delayed execution
-remain pending an explicit account/target test. Timezone is not guessed.
+One explicitly user-confirmed OpenTranslator 1.0.1 upload now verifies live
+multipart/preservation/checksums and published status through both owned and
+anonymous public reads. Metadata/schedule edits and delayed execution remain
+fixture-tested only; server timezone is not guessed.
 The full local suite has 317 passing tests. Stage 7 implementation adds changelog,
 release checklist, archive allowlist review and real clean installation of the
 local archive with both negotiation modes and 17 tools; CI includes this smoke.
@@ -61,9 +63,10 @@ are tested instead.
 
 Each completed stage gets a local commit after appropriate checks. No push
 or external publishing is implied. Stages 6–7 implementation and Linux local
-checks are ready; live release-write validation, hosted CI and native macOS/
-Windows vault checks are still pending. Do not claim end-to-end publication or
-scheduled execution before observing it. Stage 5 preview is not upload approval.
+checks are ready; new-release upload/publication is live-verified for the explicit
+OpenTranslator target. Live metadata/schedule edits, hosted CI and native macOS/
+Windows vault checks remain pending. Do not generalize one publication result to
+all apps/statuses or claim scheduled execution. Stage 5 preview is not approval.
 External npm/GitHub/Registry publishing and optional stage 8 remain deferred.
 
 SDK 2.0.0 is published as `@modelcontextprotocol/server`, Node >=20.

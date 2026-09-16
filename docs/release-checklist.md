@@ -15,7 +15,7 @@ Completed on Linux:
 - Both user-built OpenTranslator 1.0.1-1 ARM RPMs pass structural preflight.
 - Manifest stays private; no external npm/Git/GitHub/Registry publication.
 
-Live validation gate (not yet completed):
+Live upload validation gate (completed once for OpenTranslator 1.0.1):
 
 1. User runs `node dist/index.js auth login` in their own interactive terminal;
    no credential flags/chat secrets, manual 2FA when required.
@@ -31,7 +31,13 @@ Live validation gate (not yet completed):
 6. Confirm public 1.0.1 appears only when the server reports/presents publication.
    Do not silently poll indefinitely or resend an uncertain upload.
 
-Pending independent checks: native macOS/Windows vault integration, hosted CI,
+Result: owned app 290, new release 870, both ARM RPM SHA-256 values matched,
+unchanged metadata/contact/media fields matched, status `published` and anonymous
+public 1.0.1 visibility verified. No separate status mutation, image upload,
+metadata edit, schedule edit or attempt-marker reset was performed. The successful
+attempt marker remains. See [live record](live-release-check.md).
+
+Pending independent checks: live metadata/schedule edits, native macOS/Windows vault integration, hosted CI,
 live scheduling timezone/execution and optional 2FA/resend challenge. Asset,
 contact/beta/tester mutations and initializing empty cards remain outside current
 tools. No remote HTTP MCP transport is required for this local release candidate.

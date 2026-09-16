@@ -6,7 +6,8 @@ anonymous read-only tools, secure out-of-band account login/session status
 caller-owned developer app/release reads and local RPM release previews.
 Stage 6 adds confirmed app-card creation/rename, new RPM releases, metadata edits
 and website scheduling. Stage 7 adds release-candidate docs/changelog, archive
-inspection and clean-install checks. Live multipart writes are not yet verified.
+inspection and clean-install checks. One new-release multipart upload is now
+live-verified with OpenTranslator 1.0.1; live metadata/schedule edits remain unrun.
 Server decides review/publication; no admin override, deletion, installation,
 binary download or remote MCP transport.
 
@@ -285,8 +286,11 @@ separate developer-side publish/review endpoint or admin override. The output's
 Release writes share the one-use five-minute approval and durable journal of
 name writes, a 120-second operation deadline, no automatic retry/relogin and no
 redirect forwarding. On uncertain outcome inspect release reads/the website;
-do not delete attempt markers or blindly resend. No live multipart write or
-scheduled execution has yet been performed.
+do not delete attempt markers or blindly resend. Live metadata/schedule edits
+and scheduled execution have not yet been performed. A user-confirmed
+new-release upload of OpenTranslator 1.0.1 was reconciled as published and checked
+with anonymous public reads; both hashes and unchanged metadata/media matched.
+See [live upload verification](docs/live-release-check.md).
 
 ## Release candidate checks
 
