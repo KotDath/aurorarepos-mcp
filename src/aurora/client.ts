@@ -83,6 +83,15 @@ export class AuroraClient {
     this.validId(id);
     return this.request(new URL(`/api/application/appitem/${id}`, ORIGIN), 'GET', undefined, signal);
   }
+  async prepareDeveloperWrite(signal?: AbortSignal): Promise<void> {
+    await this.ensureGuest(signal ?? new AbortController().signal);
+  }
+  developerAppName(id: number | '', name: string, signal?: AbortSignal): Promise<unknown> {
+    if (id !== '') this.validId(id);
+    if (!this.csrf) throw new AuroraError('CSRF_REJECTED');
+    // Mutations deliberately bypass sessionPost's 419 refresh/retry path.
+    return this.request(new URL('/api/application/appname', ORIGIN), 'POST', { id, name }, signal);
+  }
   private validId(id: number): void {
     if (!Number.isSafeInteger(id) || id < 1) throw new AuroraError('UPSTREAM_ERROR');
   }

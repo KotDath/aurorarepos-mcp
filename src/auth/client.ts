@@ -72,5 +72,10 @@ export class AuthClient {
   app(id: number, signal?: AbortSignal): Promise<unknown> { return this.http.developerApp(id, signal); }
   versions(id: number, page: number, size: number, signal?: AbortSignal): Promise<unknown> { return this.http.developerVersions(id, page, size, signal); }
   version(id: number, signal?: AbortSignal): Promise<unknown> { return this.http.developerVersion(id, signal); }
+  async prepareWrite(signal?: AbortSignal): Promise<void> {
+    await this.http.prepareDeveloperWrite(signal);
+    if (await this.role(signal) !== 'dev') throw new AuroraError('OWNERSHIP_UNVERIFIED');
+  }
+  writeName(id: number | '', name: string, signal?: AbortSignal): Promise<unknown> { return this.http.developerAppName(id, name, signal); }
   snapshot(): Session { return snapshot(this.jar); }
 }

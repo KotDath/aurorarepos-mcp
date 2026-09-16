@@ -10,7 +10,7 @@ if (process.argv[2] === 'auth') {
 } else if (process.argv.length > 2) {
   const argument = process.argv[2];
   if (argument === '--version') console.error(VERSION);
-  else if (argument === '--help') console.error('aurorarepos-mcp: read-only stdio MCP server. Run without arguments from an MCP host. Account CLI: auth login | auth status [--verify] | auth logout.');
+  else if (argument === '--help') console.error('aurorarepos-mcp: stdio MCP server with public/developer reads, local RPM preview and user-confirmed app-card writes. Run without arguments from an MCP host. Account CLI: auth login | auth status [--verify] | auth logout.');
   else { console.error('Unsupported argument. Use --help.'); process.exitCode = 1; }
 } else {
   const handle = serveStdio(() => createServer(), {

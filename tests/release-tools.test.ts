@@ -45,7 +45,7 @@ describe('local release preparation over MCP', () => {
     vi.stubEnv('AURORAREPOS_RPM_ROOTS', value);
     const { client, server, fetch, load } = await connect();
     try {
-      expect((await client.listTools()).tools).toHaveLength(12);
+      expect((await client.listTools()).tools).toHaveLength(14);
       const result = await client.callTool({ name: 'prepare_release', arguments: { rpm32_path: rpm, aurora_versions: [5] } });
       expect(result.isError).not.toBe(true); expect(prepareOutput.parse(result.structuredContent).packages).toHaveLength(1);
       expect(JSON.stringify(result)).not.toContain(directory);
@@ -68,7 +68,7 @@ describe('local release preparation over MCP', () => {
       stderr: 'pipe' });
     const errors: string[] = []; transport.onerror = (error) => errors.push(error.message);
     try {
-      await client.connect(transport); expect((await client.listTools()).tools).toHaveLength(12);
+      await client.connect(transport); expect((await client.listTools()).tools).toHaveLength(14);
       const result = await client.callTool({ name: 'prepare_release', arguments: { rpm32_path: rpm, aurora_versions: [4, 5] } });
       expect(result.isError).not.toBe(true); expect(prepareOutput.parse(result.structuredContent).packages[0]?.metadata.arch).toBe('armv7hl');
       expect(JSON.stringify(result)).not.toContain(directory); expect(errors).toEqual([]);

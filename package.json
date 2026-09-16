@@ -2,7 +2,7 @@
   "name": "aurorarepos-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Read-only MCP server for Aurora Repos with secure local account sessions",
+  "description": "Aurora Repos MCP server with secure local sessions and user-confirmed app-card writes",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@10.33.0",

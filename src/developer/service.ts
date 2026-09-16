@@ -70,6 +70,24 @@ export class DeveloperService {
     for (const version of value.data) validateVersion(version, app.id, app.user_id);
     return value;
   }
+  // Internal write-service seam. The captured authenticated client is used for
+  // both ownership verification and mutation; no cross-session store reload.
+  async catalogForWrite(client: AuthClient, signal: AbortSignal): Promise<App[]> {
+    if (await client.role(signal) !== 'dev') throw new AuroraError('OWNERSHIP_UNVERIFIED');
+    const rows: App[] = []; let owner: number | undefined;
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const value = await this.appsPage(client, page, 20, signal, owner);
+      owner ??= value.data[0]?.user_id; rows.push(...value.data);
+      if (page >= value.last_page) return rows;
+    }
+    throw new AuroraError('LOOKUP_LIMIT');
+  }
+  async appForWrite(client: AuthClient, id: number, signal: AbortSignal): Promise<App> {
+    s.appInput.parse({ app_id: id });
+    if (await client.role(signal) !== 'dev') throw new AuroraError('OWNERSHIP_UNVERIFIED');
+    const owned = await this.owned(client, id, signal), value = parse(s.rawApp, await client.app(id, signal));
+    validateApp(value, owned.user_id, id); return value;
+  }
   async listApps(raw: unknown, signal?: AbortSignal) {
     const { page, page_size } = s.appsInput.parse(raw), timed = this.deadline(signal), client = await this.account(timed);
     const anchor = await this.appsPage(client, 1, page === 1 ? page_size : 1, timed);
