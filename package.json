@@ -2,7 +2,7 @@
   "name": "aurorarepos-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Aurora Repos MCP server with secure local sessions and user-confirmed app-card writes",
+    "description": "Aurora Repos MCP server with secure local sessions and confirmed RPM release writes",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@10.33.0",
@@ -15,6 +15,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -27,7 +28,8 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "smoke:live": "pnpm build && tsx scripts/live-smoke.ts",
     "smoke:keyring": "tsx scripts/keyring-smoke.ts",
-    "smoke:developer": "pnpm build && tsx scripts/developer-smoke.ts"
+    "smoke:developer": "pnpm build && tsx scripts/developer-smoke.ts",
+    "smoke:package": "pnpm build && tsx scripts/package-smoke.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",

@@ -1,12 +1,14 @@
 # aurorarepos-mcp
 
 Unofficial local TypeScript MCP server for <https://aurorarepos.ru/>.
-Stages 0–5 are implemented: observed API contract, SDK v2 stdio scaffold,
+Stages 0–6 implementation covers: observed API contract, SDK v2 stdio scaffold,
 anonymous read-only tools, secure out-of-band account login/session status
 caller-owned developer app/release reads and local RPM release previews.
-The first slice of stage 6 adds user-confirmed creation/renaming of app cards;
-the rest of stage 6 is not implemented or live-verified.
-No uploads, publication, app deletion, package installation or binary downloads.
+Stage 6 adds confirmed app-card creation/rename, new RPM releases, metadata edits
+and website scheduling. Stage 7 adds release-candidate docs/changelog, archive
+inspection and clean-install checks. Live multipart writes are not yet verified.
+Server decides review/publication; no admin override, deletion, installation,
+binary download or remote MCP transport.
 
 ## Tools
 
@@ -26,6 +28,9 @@ No uploads, publication, app deletion, package installation or binary downloads.
 | `prepare_release` | Local RPM metadata/checksum preview; no upload or approval | `rpm32_path`, `rpm64_path`, `aurora_versions`, `app_id`, `release_notes` |
 | `create_app` | Create a name/card after exact user form confirmation; no release | `name` |
 | `rename_my_app` | Rename an owned card after exact user form confirmation | `app_id`, `name` |
+| `upload_release` | Upload a NEW owned release with preserved card fields | `app_id`, `rpm32_path`, `rpm64_path`, `aurora_versions`, `release_notes` |
+| `update_my_app_version` | Update shared description/category and/or release notes | `app_id`, `version_id`, `description`, `category_id`, `release_notes` |
+| `schedule_my_app_version` | Set/cancel website schedule, not forced publication | `app_id`, `version_id`, `is_delayed`, `publish_at` |
 
 `aurora_version` is the OS major version **4 or 5** (default **5**), not the
 website's system ID. Pagination defaults to page 1 / 10 items, maximum 20
@@ -196,15 +201,16 @@ files are not changed, extracted, executed, signed, installed or uploaded.
 `app_id` is optional and **not verified**; OS selections are declarations, not
 proof of SDK compatibility. Signatures, embedded digests, payload contents and
 dependencies are not verified. This is structural metadata preflight, not librpm
-verification or upload approval. Future writes must recheck the files and target.
+verification or upload approval. Release writes independently recheck files/target.
 
 The local preflight is tested with synthetic packages, including real stdio calls.
-No existing SDK-built package was searched for or read during implementation.
+Both user-built OpenTranslator 1.0.1-1 ARM release RPMs passed local preflight;
+this does not verify signatures or SDK compatibility.
 There is no directory sandbox: the tool can read RPMs anywhere the server's OS
 user can access them, including paths reached through filesystem links.
 See [release preparation security boundary](docs/release-preparation.md).
 
-## Confirmed app-card writes (stage 6, partial)
+## Confirmed app-card writes
 
 `create_app` creates an application name/card, **not a release or publication**.
 `rename_my_app` renames an app ID from `list_my_apps`. These tools require terminal
@@ -242,9 +248,64 @@ not forwarded or persisted.
 Both tools are tested against synthetic HTTP, including accepted/declined forms
 over legacy/automatic protocol connections. **No live create/rename was performed.**
 Frontend contract observations are not full live backend verification.
-RPM upload, complete release metadata editing, scheduling, review/publication,
-images, tester management, token generation and deletion remain unsupported.
+Image/contact/beta/tester mutations, token generation and deletion remain
+unsupported; release operations are documented below.
 See [observed write contract and gaps](docs/write-contract.md).
+
+## Confirmed release writes
+
+`upload_release` creates a NEW release of an existing configured app, not RPM
+replacement on an old release. Pass paths/OS/notes as in `prepare_release` and
+a mandatory owned `app_id`. It checks ARM slots/pair metadata, existing package
+name/version/OS and the site's 100,000,000-byte file limit. Exact user form
+confirmation includes basenames, SHA-256, version, OS and notes. Files, state
+and session are rechecked after approval; immutable checked bytes are sent once.
+Read-back verifies a unique release, server SHA-256, notes and shared fields.
+
+```json
+{"name":"upload_release","arguments":{"app_id":201,"rpm32_path":"/absolute/app-1.2.3-1.armv7hl.rpm","rpm64_path":"/absolute/app-1.2.3-1.aarch64.rpm","aurora_versions":[5],"release_notes":"Fix startup"}}
+{"name":"update_my_app_version","arguments":{"app_id":201,"version_id":301,"release_notes":"Corrected notes"}}
+{"name":"schedule_my_app_version","arguments":{"app_id":201,"version_id":301,"is_delayed":true,"publish_at":"2026-12-01T15:30"}}
+{"name":"schedule_my_app_version","arguments":{"app_id":201,"version_id":301,"is_delayed":false}}
+```
+
+Metadata edits accept plain-text `description`/`release_notes` and `category_id`.
+Description/category affect the SHARED app across releases. Unspecified fields,
+contacts, owner, icon, screenshots, beta, schedule and RPM references/digests are
+retained and checked. Missing editor fields fail closed. Empty new cards must
+first be configured with description/category/icon/screenshots on the website;
+these tools do not upload image assets or mutate contacts/beta/testers.
+
+Scheduling accepts website wall-clock `YYYY-MM-DDTHH:mm`, NOT inferred UTC/local
+conversion; `publish_at` is required iff delayed is enabled. Stored flags/date
+are verified, but timezone/execution remain unverified. There is no observed
+separate developer-side publish/review endpoint or admin override. The output's
+`publication_state` is read-back state: `pending_review` is NOT published.
+
+Release writes share the one-use five-minute approval and durable journal of
+name writes, a 120-second operation deadline, no automatic retry/relogin and no
+redirect forwarding. On uncertain outcome inspect release reads/the website;
+do not delete attempt markers or blindly resend. No live multipart write or
+scheduled execution has yet been performed.
+
+## Release candidate checks
+
+```sh
+pnpm check
+pnpm smoke:package
+# Optional once production dependencies are cached:
+pnpm smoke:package --offline
+```
+
+The archive smoke inspects allowlisted files, installs the actual local archive
+in a fresh temporary consumer with lifecycle scripts disabled, checks CLI stdout,
+both MCP negotiation modes, 17 tools and local synthetic RPM preflight. It may
+fetch registry dependencies, but never contacts Aurora Repos or accesses account
+state/the vault. Temporary projects are removed afterward. CI includes this test;
+hosted runs and native macOS/Windows vault checks remain unrun here.
+See [release checklist](docs/release-checklist.md) and [changelog](CHANGELOG.md).
+The npm package remains private; application publishing does not imply Git push
+or external npm/Registry publication.
 
 ## Development
 

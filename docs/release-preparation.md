@@ -66,5 +66,7 @@ no search for or reading of the user's existing packages is implied.
 Implemented and checked locally on Linux: synthetic parser/path/checksum/
 mutation/cancellation tests, schema-valid MCP calls and real stdio subprocesses
 with legacy and automatic negotiation, without directory configuration.
-Native macOS/Windows execution and an SDK-built RPM preflight remain unverified;
+Both user-built OpenTranslator 1.0.1-1 ARM RPMs passed structural preflight;
+signature/payload/SDK verification remains out of scope. Native macOS/Windows
+execution remains unverified;
 CI is configured for those OSes but has not been dispatched externally here.

@@ -57,6 +57,10 @@ export class ReleaseWriteService {
     const parsed = s.editorSchema.safeParse(await this.developer.editorForWrite(client, app, signal, 'version_id' in args ? args.version_id : undefined));
     if (!parsed.success) throw new WriteError('EDITOR_CONTRACT_UNVERIFIED');
     const editor = parsed.data;
+    // The name/editor endpoint need not repeat beta metadata. Anchor it to
+    // the independently verified owned app, rather than assuming false.
+    if (typeof app.is_beta !== 'boolean' || (editor.is_beta != null && editor.is_beta !== app.is_beta)) throw new WriteError('EDITOR_CONTRACT_UNVERIFIED');
+    editor.is_beta = app.is_beta;
     if (editor.screenshots.some((item) => item.application_id !== undefined && item.application_id !== app.id)) throw new AuroraError('OWNERSHIP_UNVERIFIED');
     // Retain only site-hosted asset references; never fetch/repost remote image bytes.
     for (const value of [editor.icon, ...editor.screenshots.map((item) => item.src)]) {

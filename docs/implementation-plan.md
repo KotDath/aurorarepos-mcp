@@ -40,23 +40,31 @@ adds synthetic ownership/status/limit/cancellation tests, all four protocol
 calls and an opt-in live authenticated stdio smoke check with a published
 release. Draft/review/rejection and old-release selection are fixture-tested
 only. Stage 5 adds synthetic RPM parser/path/checksum/mutation/cancellation
-tests and real stdio preflight calls with legacy/automatic negotiation. No
-existing SDK-built RPM has been read. Directory allowlisting was removed at the
+tests and real stdio preflight calls with legacy/automatic negotiation. Both
+user-built OpenTranslator 1.0.1 ARM RPMs passed preflight. Allowlisting was removed at the
 user's request; links and arbitrary absolute RPM paths work without configuration.
-The first slice of stage 6 implements `create_app`/`rename_my_app`, exact-user
-form elicitation on both protocol eras, bounded one-use state-bound tickets,
-durable duplicate-attempt markers and read-back reconciliation. HTTP/form tests
-are synthetic; no live app-card write has been performed. Multipart uploads,
-complete release edits, scheduling and review/publication are not implemented.
-The full local suite has 276 passing tests.
+Stage 6 implementation now includes create/rename cards, confirmed NEW release
+uploads, shared description/category and release-note edits, and website
+scheduling. Five-minute one-use confirmations bind arguments/session/state/files;
+durable owner/content-bound attempt markers and read-back checks prevent blind
+retry. Multipart follows both observed frontend forms; edits retain RPMs and
+all unchanged editor fields/media/contacts. Server decides publication status;
+no separate developer publication endpoint or admin override is exposed.
+Fresh empty cards requiring initial image/contact setup use the website first.
+Live multipart/preservation/status verification and actual delayed execution
+remain pending an explicit account/target test. Timezone is not guessed.
+The full local suite has 317 passing tests. Stage 7 implementation adds changelog,
+release checklist, archive allowlist review and real clean installation of the
+local archive with both negotiation modes and 17 tools; CI includes this smoke.
 The file-symlink test is skipped on Windows, where junctions
 are tested instead.
 
 Each completed stage gets a local commit after appropriate checks. No push
-or external publishing is implied. Stage 6 is **partially implemented**, not complete:
-its remaining operations require full multipart/preservation/status contract
-verification and an explicitly approved live test target. Never treat a stage 5
-preview or its hash as upload authorization. Stage 7/8 remain deferred.
+or external publishing is implied. Stages 6–7 implementation and Linux local
+checks are ready; live release-write validation, hosted CI and native macOS/
+Windows vault checks are still pending. Do not claim end-to-end publication or
+scheduled execution before observing it. Stage 5 preview is not upload approval.
+External npm/GitHub/Registry publishing and optional stage 8 remain deferred.
 
 SDK 2.0.0 is published as `@modelcontextprotocol/server`, Node >=20.
 Use Node >=22 here. The 2026-07-28 HTTP spec removes protocol-level sessions
