@@ -14,8 +14,8 @@ export function parseSession(raw: unknown): Session {
     const parsed = payloadSchema.parse(raw);
     const cookies = parsed.cookies.map((rawCookie) => {
       const cookie = Cookie.fromJSON(rawCookie);
-      if (!cookie || cookie.domain !== new URL(ORIGIN).hostname || !cookie.key || !cookie.value ||
-        cookie.key.length > 256 || cookie.value.length > 16_384 || !cookie.path?.startsWith('/')) throw new AuthError('SESSION_INVALID');
+      if (!cookie || !cookie.validate() || cookie.domain !== new URL(ORIGIN).hostname || !cookie.key || !cookie.value ||
+        cookie.key.length > 256 || cookie.value.length > 16_384 || !cookie.path?.startsWith('/') || cookie.path.length > 1024) throw new AuthError('SESSION_INVALID');
       return cookie.toJSON();
     });
     return { ...parsed, cookies };

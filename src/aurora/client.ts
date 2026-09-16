@@ -9,13 +9,14 @@ export const systemId = (version: AuroraVersion): number => version === 5 ? 1 : 
 export type Fetch = (input: URL, init: RequestInit) => Promise<Response>;
 export type ClientOptions = {
   fetch?: Fetch;
+  jar?: CookieJar;
   timeoutMs?: number;
   maxResponseBytes?: number;
   minIntervalMs?: number;
 };
 
 export class AuroraClient {
-  private readonly jar = new CookieJar();
+  private readonly jar: CookieJar;
   private readonly fetch: Fetch;
   private readonly gate: RequestGate;
   private readonly timeoutMs: number;
@@ -24,6 +25,7 @@ export class AuroraClient {
   private bootstrap: Promise<void> | undefined;
 
   constructor(options: ClientOptions = {}) {
+    this.jar = options.jar ?? new CookieJar();
     this.fetch = options.fetch ?? ((url, init) => fetch(url, init));
     this.gate = new RequestGate(options.minIntervalMs ?? 250);
     this.timeoutMs = options.timeoutMs ?? 15_000;
@@ -46,17 +48,34 @@ export class AuroraClient {
     return this.request(new URL(`/api/site/author/${id}`, ORIGIN), 'GET', undefined, signal);
   }
   async app(slug: string, version: AuroraVersion, signal?: AbortSignal): Promise<unknown> {
+    return this.sessionPost('/api/site/appitem', { slug, system: version }, signal);
+  }
+
+  accountLogin(email: string, password: string, signal?: AbortSignal): Promise<unknown> {
+    return this.sessionPost('/api/applogin', { email, password, code: null }, signal);
+  }
+  accountVerify(token: string, code: string, signal?: AbortSignal): Promise<unknown> {
+    return this.sessionPost('/api/2fa/verify', { token, code }, signal);
+  }
+  accountResend(token: string, signal?: AbortSignal): Promise<unknown> {
+    return this.sessionPost('/api/2fa/resend', { token }, signal);
+  }
+  accountRole(signal?: AbortSignal): Promise<unknown> {
+    return this.request(new URL('/api/getrole', ORIGIN), 'GET', undefined, signal);
+  }
+
+  private async sessionPost(path: string, data: object, signal?: AbortSignal): Promise<unknown> {
     const cancellation = signal ?? new AbortController().signal;
     await this.ensureGuest(cancellation);
     const token = this.csrf;
-    const url = new URL('/api/site/appitem', ORIGIN);
-    try { return await this.request(url, 'POST', { slug, system: version }, cancellation); }
+    const url = new URL(path, ORIGIN);
+    try { return await this.request(url, 'POST', data, cancellation); }
     catch (error) {
       if (!(error instanceof AuroraError) || error.code !== 'CSRF_REJECTED') throw error;
       // Another concurrent request may already have refreshed this token.
       if (this.csrf === token) this.csrf = undefined;
       await this.ensureGuest(cancellation);
-      return this.request(url, 'POST', { slug, system: version }, cancellation);
+      return this.request(url, 'POST', data, cancellation);
     }
   }
 
@@ -98,12 +117,25 @@ export class AuroraClient {
               headers.set('Origin', ORIGIN);
               headers.set('Referer', `${ORIGIN}/app`);
             }
+            const accountPost = method === 'POST' && ['/api/applogin', '/api/2fa/verify', '/api/2fa/resend'].includes(url.pathname);
+            if (accountPost) {
+              headers.set('X-Requested-With', 'XMLHttpRequest');
+              headers.set('Referer', `${ORIGIN}/login`);
+            }
             const response = await this.fetch(url, {
-              method, headers, redirect: 'error', signal: timed,
+              method, headers, redirect: accountPost ? 'manual' : 'error', signal: timed,
               ...(data ? { body: JSON.stringify(data) } : {}),
             });
             for (const cookie of response.headers.getSetCookie()) {
               await this.jar.setCookie(cookie, url.href, { ignoreError: true });
+            }
+            if (accountPost && response.status >= 300 && response.status < 400) {
+              // Ignore Location entirely: never follow/forward a credential POST,
+              // even if it points to HTTP or another origin. A 302/303 is only
+              // a candidate; authentication requires a fixed HTTPS protected GET.
+              await response.body?.cancel();
+              if (url.pathname === '/api/2fa/resend' || ![302, 303].includes(response.status)) throw new AuroraError('REDIRECT_REJECTED');
+              return {};
             }
             if (!response.ok) {
               const after = response.headers.get('retry-after');

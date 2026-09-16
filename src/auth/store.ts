@@ -119,7 +119,8 @@ export class SessionStore {
     try {
       await this.locked(async () => {
         // Don't remove ciphertext while the vault cannot even be accessed.
-        const key = await this.keys.get(); key?.fill(0);
+        try { const key = await this.keys.get(); key?.fill(0); }
+        catch (error) { if (!(error instanceof AuthError) || error.code !== 'SESSION_INVALID') throw error; }
         try { await unlink(this.path); } catch (error) { if (!missing(error)) throw error; }
         await this.keys.delete();
       });

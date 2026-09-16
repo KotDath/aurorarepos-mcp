@@ -1,15 +1,17 @@
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createServer } from '../src/server.js';
 import { AuroraClient } from '../src/aurora/client.js';
 import { AuroraService } from '../src/aurora/service.js';
 import { backend, json } from './helpers.js';
+import { AuthService } from '../src/auth/service.js';
+import { AuthError } from '../src/auth/errors.js';
 
 describe('MCP tools over a protocol connection', () => {
-  async function connect() {
+  async function connect(auth = new AuthService()) {
     const fetch = backend();
-    const server = createServer(new AuroraService(new AuroraClient({ fetch, minIntervalMs: 0 })));
+    const server = createServer(new AuroraService(new AuroraClient({ fetch, minIntervalMs: 0 })), auth);
     const client = new Client({ name: 'integration-test', version: '1.0.0' });
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
@@ -17,11 +19,11 @@ describe('MCP tools over a protocol connection', () => {
     return { client, server, fetch };
   }
 
-  it('exposes exactly six read-only tools with input/output schemas', async () => {
+  it('exposes six public tools and safe account status with input/output schemas', async () => {
     const { client, server } = await connect();
     try {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps'].sort());
+      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps', 'auth_status'].sort());
       for (const tool of tools) {
         expect(tool.annotations?.readOnlyHint).toBe(true);
         expect(tool.annotations?.destructiveHint).toBe(false);
@@ -74,6 +76,32 @@ describe('MCP tools over a protocol connection', () => {
       const output = await client.callTool({ name: 'search_apps', arguments: { page_size: 100 } });
       expect(output.isError).toBe(true);
       expect(fetch).not.toHaveBeenCalled();
+    } finally { await client.close(); await server.close(); }
+  });
+  it('returns local auth state without credentials and passes explicit verification/cancellation', async () => {
+    const auth = new AuthService();
+    const status = vi.spyOn(auth, 'status').mockResolvedValue({ state: 'stored', saved_at: '2026-09-16T00:00:00.000Z', verified: false });
+    const { client, server, fetch } = await connect(auth);
+    try {
+      await client.listTools();
+      const output = await client.callTool({ name: 'auth_status', arguments: {} });
+      expect(output.isError).not.toBe(true);
+      expect(output.structuredContent).toEqual({ state: 'stored', saved_at: '2026-09-16T00:00:00.000Z', verified: false });
+      expect(status).toHaveBeenCalledWith({ verify: false }, expect.any(AbortSignal));
+      expect(fetch).not.toHaveBeenCalled();
+      await client.callTool({ name: 'auth_status', arguments: { verify: true } });
+      expect(status).toHaveBeenLastCalledWith({ verify: true }, expect.any(AbortSignal));
+      const invalid = await client.callTool({ name: 'auth_status', arguments: { password: 'MUST_NOT_LEAK' } });
+      expect(invalid.isError).toBe(true); expect(JSON.stringify(invalid)).not.toContain('MUST_NOT_LEAK');
+      expect(status).toHaveBeenCalledTimes(2);
+    } finally { await client.close(); await server.close(); }
+  });
+  it('reports secure storage failure as a sanitized error, not logged out', async () => {
+    const auth = new AuthService(); vi.spyOn(auth, 'status').mockRejectedValue(new AuthError('STORAGE_UNAVAILABLE'));
+    const { client, server } = await connect(auth);
+    try {
+      await client.listTools(); const output = await client.callTool({ name: 'auth_status', arguments: {} });
+      expect(output.isError).toBe(true); expect(JSON.stringify(output)).toContain('STORAGE_UNAVAILABLE'); expect(output.structuredContent).toBeUndefined();
     } finally { await client.close(); await server.close(); }
   });
 });
