@@ -1,0 +1,44 @@
+{
+  "current_page": 1,
+  "last_page": 2,
+  "per_page": 2,
+  "total": 3,
+  "next_page_url": "https://aurorarepos.ru/api/site/app?page=2",
+  "data": [
+    {
+      "id": 1001,
+      "name": "Example Timer",
+      "slug": "example-timer",
+      "user_id": 101,
+      "category_id": 7,
+      "description": "<p>A <strong>timer</strong> &amp; clock.</p>",
+      "system": 1,
+      "all_systems": "1",
+      "ver": "1.0.0",
+      "release": "1",
+      "rpm32": "/download/example-timer-1.0.0-1.armv7hl.rpm",
+      "rpm64": null,
+      "size": 512000,
+      "stars": 4.5,
+      "download_count": 12,
+      "latest_app": {"id": 2001, "system": 1, "ver": "1.0.0", "release": "1"}
+    },
+    {
+      "id": 1002,
+      "name": "Example Notes",
+      "slug": "example-notes",
+      "user_id": 102,
+      "category_id": 1,
+      "description": null,
+      "system": 2,
+      "all_systems": "1,2",
+      "ver": "2.0",
+      "release": null,
+      "rpm32": null,
+      "rpm64": null,
+      "size": null,
+      "stars": 0,
+      "download_count": 0
+    }
+  ]
+}

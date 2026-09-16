@@ -1,0 +1,40 @@
+{
+  "success": true,
+  "message": "OK",
+  "data": {
+    "id": 1001,
+    "name": "Example Timer",
+    "slug": "example-timer",
+    "user_id": 101,
+    "category_id": 7,
+    "category": "Utilities",
+    "dev": "Example Developer",
+    "description": "<p>A timer.</p><script>untrusted()</script>",
+    "system": 1,
+    "available_systems": [1],
+    "ver": "1.0.0",
+    "release": "1",
+    "rpm32": "/download/example-timer-1.0.0-1.armv7hl.rpm",
+    "rpm64": null,
+    "size": 512000,
+    "count": 12,
+    "star": 4.5,
+    "screenshots": [{"id": 3001, "src": "/image/screen/example-timer-1.png"}],
+    "latest_app": {
+      "id": 2001, "system": 1, "ver": "1.0.0", "release": "1",
+      "rpm32": "/download/example-timer-1.0.0-1.armv7hl.rpm",
+      "rpm64": null,
+      "sha256_32": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256_64": null
+    },
+    "history": [
+      {
+        "id": 2001, "system": 1, "status": "3", "ver": "1.0.0", "release": "1",
+        "newcomment": "<p>First release.</p>", "created_at": "16-09-2026",
+        "rpm32": "/download/example-timer-1.0.0-1.armv7hl.rpm",
+        "rpm64": null,
+        "sha256_32": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  }
+}

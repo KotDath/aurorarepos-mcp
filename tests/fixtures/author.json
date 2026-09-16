@@ -1,0 +1,4 @@
+[
+  {"application_id": 1001, "name": "Example Timer", "slug": "example-timer", "system": 1, "ver": "1.0.0", "release": "1", "stars": 4.5, "download_count": 12},
+  {"application_id": 1002, "name": "Example Notes", "slug": "example-notes", "system": 2, "ver": "2.0", "release": null, "stars": 0, "download_count": 0}
+]
