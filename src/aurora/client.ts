@@ -61,7 +61,7 @@ export class AuroraClient {
     return this.sessionPost('/api/2fa/resend', { token }, signal);
   }
   accountRole(signal?: AbortSignal): Promise<unknown> {
-    return this.request(new URL('/api/getrole', ORIGIN), 'GET', undefined, signal);
+    return this.request(new URL('/api/getrole', ORIGIN), 'GET', undefined, signal, false, true);
   }
 
   private async sessionPost(path: string, data: object, signal?: AbortSignal): Promise<unknown> {
@@ -96,7 +96,7 @@ export class AuroraClient {
     await abortable(this.bootstrap, signal);
   }
 
-  private async request(url: URL, method: 'GET' | 'POST', data?: object, signal?: AbortSignal, html = false): Promise<unknown> {
+  private async request(url: URL, method: 'GET' | 'POST', data?: object, signal?: AbortSignal, html = false, plain = false): Promise<unknown> {
     if (url.origin !== ORIGIN) throw new AuroraError('ACCESS_DENIED');
     const cancellation = signal ?? new AbortController().signal;
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -122,6 +122,7 @@ export class AuroraClient {
               headers.set('X-Requested-With', 'XMLHttpRequest');
               headers.set('Referer', `${ORIGIN}/login`);
             }
+            if (url.pathname === '/api/getrole') headers.set('X-Requested-With', 'XMLHttpRequest');
             const response = await this.fetch(url, {
               method, headers, redirect: accountPost ? 'manual' : 'error', signal: timed,
               ...(data ? { body: JSON.stringify(data) } : {}),
@@ -147,12 +148,12 @@ export class AuroraClient {
               await response.body?.cancel();
               throw httpError(response.status);
             }
-            if (!html && !/^application\/json\b/i.test(response.headers.get('content-type') ?? '')) {
+            if (!html && !plain && !/^application\/json\b/i.test(response.headers.get('content-type') ?? '')) {
               await response.body?.cancel();
               throw new AuroraError('INVALID_RESPONSE');
             }
             const text = await this.readBody(response, timed);
-            if (html) return text;
+            if (html || plain) return text;
             try { return JSON.parse(text) as unknown; }
             catch { throw new AuroraError('INVALID_RESPONSE'); }
           } catch (error) {

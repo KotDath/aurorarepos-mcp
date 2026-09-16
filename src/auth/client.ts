@@ -55,8 +55,14 @@ export class AuthClient {
   }
   cancel(): void { this.token = undefined; }
   async check(signal?: AbortSignal): Promise<void> {
-    const role = await this.http.accountRole(signal);
-    if (!z.string().min(1).max(80).safeParse(role).success || ['guest', 'anonymous'].includes(String(role).toLowerCase())) throw new AuthError('AUTH_FAILED');
+    let role = await this.http.accountRole(signal);
+    if (typeof role === 'string') {
+      role = role.trim();
+      // Laravel string responses need not have a JSON content type. Accept
+      // only a bounded role identifier, never a login/error HTML page.
+      try { role = JSON.parse(role as string) as unknown; } catch { /* plain identifier */ }
+    }
+    if (!z.string().min(1).max(80).regex(/^[a-z][a-z0-9_-]*$/i).safeParse(role).success || ['guest', 'anonymous'].includes(String(role).toLowerCase())) throw new AuthError('AUTH_FAILED');
   }
   snapshot(): Session { return snapshot(this.jar); }
 }

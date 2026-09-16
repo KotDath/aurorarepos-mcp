@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => {
   return { methods, constructor };
 });
 vi.mock('@napi-rs/keyring', () => ({ AsyncEntry: mocks.constructor }));
+vi.mock('../src/auth/native-environment.js', () => ({ prepareNativeEnvironment: async () => undefined }));
 import { NativeKeyStore } from '../src/auth/key-store.js';
 
 beforeEach(() => { vi.resetAllMocks(); mocks.constructor.mockImplementation(function () { return mocks.methods; }); });

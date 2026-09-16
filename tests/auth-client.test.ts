@@ -71,6 +71,15 @@ describe('account login and separate sessions', () => {
     await expect(service.finishLogin(client)).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
     expect(await store.load()).toBeNull();
   });
+  it('accepts a protected plain-text role while preserving JSON Accept and rejecting HTML', async () => {
+    const { service, store, fetch } = await setup(); const client = await service.createLogin();
+    await client.begin('synthetic@example.com', 'SYNTHETIC_PASSWORD');
+    fetch.mockResolvedValueOnce(new Response('dev', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }));
+    await service.finishLogin(client); expect(await store.load()).not.toBeNull();
+    expect(new Headers(fetch.mock.calls.at(-1)?.[1].headers).get('Accept')).toBe('application/json');
+    fetch.mockResolvedValueOnce(new Response('<html>Login</html>', { headers: { 'Content-Type': 'text/html' } }));
+    await expect(service.status({ verify: true })).rejects.toMatchObject({ code: 'AUTH_FAILED' });
+  });
   it.each([401, 422, 500])('sanitizes login failure HTTP %s and does not retry credentials', async (status) => {
     const fetch = http(); fetch.mockResolvedValueOnce(guest()).mockResolvedValueOnce(json({ password: 'MUST_NOT_LEAK' }, status));
     const client = new AuthClient(undefined, { fetch, minIntervalMs: 0 });

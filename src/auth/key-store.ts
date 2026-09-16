@@ -1,4 +1,5 @@
 import { AuthError } from './errors.js';
+import { prepareNativeEnvironment } from './native-environment.js';
 
 export interface KeyStore {
   get(): Promise<Buffer | null>;
@@ -10,6 +11,7 @@ export class NativeKeyStore implements KeyStore {
   // Lazy loading keeps anonymous stdio startup working without an OS vault.
   private async entry() {
     try {
+      await prepareNativeEnvironment();
       const { AsyncEntry } = await import('@napi-rs/keyring');
       return new AsyncEntry('aurorarepos-mcp', 'session-key-v1-default', { linux: { store: 'secret-service' } });
     } catch { throw new AuthError('STORAGE_UNAVAILABLE'); }
