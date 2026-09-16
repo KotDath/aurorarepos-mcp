@@ -21,11 +21,11 @@ describe('MCP tools over a protocol connection', () => {
     return { client, server, fetch };
   }
 
-  it('exposes six public, four developer tools and safe account status with schemas', async () => {
+  it('exposes public/developer/status/local-preflight tools with schemas', async () => {
     const { client, server } = await connect();
     try {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps', 'auth_status', 'list_my_apps', 'get_my_app', 'list_my_app_versions', 'get_my_app_version'].sort());
+      expect(tools.map((t) => t.name).sort()).toEqual(['search_apps', 'get_app', 'get_app_versions', 'list_categories', 'list_systems', 'list_author_apps', 'auth_status', 'list_my_apps', 'get_my_app', 'list_my_app_versions', 'get_my_app_version', 'prepare_release'].sort());
       for (const tool of tools) {
         expect(tool.annotations?.readOnlyHint).toBe(true);
         expect(tool.annotations?.destructiveHint).toBe(false);

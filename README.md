@@ -1,9 +1,9 @@
 # aurorarepos-mcp
 
 Unofficial local TypeScript MCP server for <https://aurorarepos.ru/>.
-Stages 0–4 are implemented: observed API contract, SDK v2 stdio scaffold,
+Stages 0–5 are implemented: observed API contract, SDK v2 stdio scaffold,
 anonymous read-only tools, secure out-of-band account login/session status
-and caller-owned developer app/release reads.
+caller-owned developer app/release reads and local RPM release previews.
 No uploads, publication, app deletion, package installation or binary downloads.
 
 ## Tools
@@ -21,6 +21,7 @@ No uploads, publication, app deletion, package installation or binary downloads.
 | `get_my_app` | Owned app details and latest release metadata | `app_id` |
 | `list_my_app_versions` | Owned app releases, including non-public statuses | `app_id`, `page`, `page_size` |
 | `get_my_app_version` | Selected owned release, shared description and screenshots | `app_id`, `version_id` |
+| `prepare_release` | Local RPM metadata/checksum preview; no upload or approval | `rpm32_path`, `rpm64_path`, `aurora_versions`, `app_id`, `release_notes` |
 
 `aurora_version` is the OS major version **4 or 5** (default **5**), not the
 website's system ID. Pagination defaults to page 1 / 10 items, maximum 20
@@ -155,6 +156,63 @@ be run on those OSes; CI uses mocks and does not verify access to their vaults.
 Account login and fresh-process CLI/MCP verification were also checked on Linux.
 2FA/resend are covered by mocks, not yet checked against a live 2FA challenge.
 
+## Local release preparation
+
+`prepare_release` needs no login and makes no website request. Local file reads
+are **disabled by default**. The server operator must explicitly configure
+dedicated build directories through `AURORAREPOS_RPM_ROOTS`: a JSON array of
+absolute directory paths, not a tool argument. For example, add to the MCP
+server's configuration (replace the placeholder with your own build directory):
+
+```json
+{
+  "env": {
+    "AURORAREPOS_RPM_ROOTS": "[\"/absolute/path/to/build/RPMS\"]"
+  }
+}
+```
+
+On Windows use JSON-safe paths such as `C:/projects/app/build/RPMS`. Restart the
+server after changing its environment. Up to eight roots; volume roots and the
+home directory itself are refused. Use trusted dedicated directories, not broad
+shared trees. There is no disk search or automatic grant based on MCP host roots.
+
+Example call with one or both architecture slots:
+
+```json
+{
+  "name": "prepare_release",
+  "arguments": {
+    "rpm32_path": "/absolute/path/to/build/RPMS/app-1.2.3-1.armv7hl.rpm",
+    "rpm64_path": "/absolute/path/to/build/RPMS/app-1.2.3-1.aarch64.rpm",
+    "aurora_versions": [5],
+    "app_id": 201,
+    "release_notes": "Fix startup crash"
+  }
+}
+```
+
+At least one RPM is required. `rpm32` must contain `armv7hl`, `rpm64` must contain
+`aarch64`; paired name/epoch/version/release must match. Only traditional binary
+RPM v4-style packages are supported; source, x86, `noarch` and RPM v6 are refused.
+Limits: 256 MiB/file, two files, bounded headers, 30-second operation deadline,
+one local operation at a time. Files/descendant directories cannot be symlinks;
+hardlinked files and changes detected during reading are refused.
+
+The preview contains basenames, allowlisted metadata, complete-file SHA-256,
+plain release notes and explicit verification warnings. It is not persisted;
+files are not changed, extracted, executed, signed, installed or uploaded.
+`app_id` is optional and **not verified**; OS selections are declarations, not
+proof of SDK compatibility. Signatures, embedded digests, payload contents and
+dependencies are not verified. This is structural metadata preflight, not librpm
+verification or upload approval. Future writes must recheck the files and target.
+
+The local preflight is tested with synthetic packages, including real stdio calls.
+No existing SDK-built package was searched for or read during implementation.
+Portable path checks are not a race-free sandbox against hostile local directory
+replacement: keep allowed directories trusted and use an OS sandbox when needed.
+See [release preparation security boundary](docs/release-preparation.md).
+
 ## Development
 
 Requires Node.js 22+ and pnpm 10.
@@ -227,6 +285,9 @@ and older-release selection are covered by synthetic fixtures, not live accounts
 - Developer endpoints use authenticated GET only, with a separate shared HTTP
   gate from anonymous tools. Private payloads are not saved; owner/contact/token
   fields are checked internally where needed but never returned.
+- Local release preparation has an independent one-operation gate and deny-by-
+  default directory policy; it never accesses the account or network. Its checks
+  do not establish trusted signatures, installability or user approval.
 
 ## Layout
 
@@ -236,6 +297,7 @@ src/server.ts          MCP factory
 src/tools/             registration and safe result formatting
 src/auth/              interactive CLI, account client, encrypted session/vault
 src/developer/         caller-owned reads, runtime schemas and normalization
+src/release/           local directory policy, bounded RPM preflight and preview
 src/aurora/client.ts   fixed endpoints, guest cookies/CSRF, bounded HTTP
 src/aurora/gate.ts     rate/concurrency/cancellation
 src/aurora/service.ts  API parsing and public operations

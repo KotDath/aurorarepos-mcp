@@ -64,3 +64,9 @@ Sources consulted on 2026-09-16:
 RPM's documentation recommends librpm for full verification; the portable parser
 here intentionally does not claim that scope. Test data must remain synthetic;
 no search for or reading of the user's existing packages is implied.
+
+Implemented and checked locally on Linux: synthetic parser/policy/checksum/
+mutation/cancellation tests, schema-valid MCP calls and real stdio subprocesses
+with legacy and automatic negotiation. Full local suite: 243 passing tests.
+Native macOS/Windows execution and an SDK-built RPM preflight remain unverified;
+CI is configured for those OSes but has not been dispatched externally here.

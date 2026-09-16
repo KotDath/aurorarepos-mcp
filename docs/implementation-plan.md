@@ -17,7 +17,10 @@
    verified `dev` role, bounded caller-catalog membership checks and session
    expiry handling. No admin-wide fallback or site writes.
 6. **Stage 5 — prepare release without uploading:** RPM/file validation,
-   allowed directories/realpath, hashes and reviewable preview.
+   `prepare_release`, deny-by-default operator directory policy, realpath/link/
+   identity checks, bounded RPM structure/architecture/pair preflight,
+   full-file SHA-256 and an in-memory reviewable preview. Not signature or SDK
+   compatibility verification; no account access, approval capability or upload.
 7. **Stage 6 — confirmed writes:** create/upload/update/schedule, verified
    server contract, user approval enforced, duplicate-upload protection.
    No automatic upload retry after ambiguous failures.
@@ -26,7 +29,7 @@
 9. **Stage 8 — optional remote transport:** Streamable HTTP, separate MCP
    auth and Aurora auth, per-user isolation, Origin checks, compatibility.
 
-Stages 0–4 are now implemented. Local checks include lint, typecheck, build,
+Stages 0–5 are now implemented. Local checks include lint, typecheck, build,
 HTTP/service/protocol tests, real subprocess handshakes, Inspector CLI and
 an explicit anonymous live smoke check. Stage 3 additionally checks encrypted
 storage with a native Linux vault smoke test, account login and fresh-process
@@ -36,11 +39,16 @@ not been run here, and hosted CI has not been dispatched externally. Stage 4
 adds synthetic ownership/status/limit/cancellation tests, all four protocol
 calls and an opt-in live authenticated stdio smoke check with a published
 release. Draft/review/rejection and old-release selection are fixture-tested
-only. The full local suite currently has 167 passing tests.
+only. Stage 5 adds synthetic RPM parser/policy/checksum/mutation/cancellation
+tests and real stdio preflight calls with legacy/automatic negotiation. No
+existing SDK-built RPM has been read. The full local suite currently has 243
+passing tests (the file-symlink test is skipped on Windows, where junctions
+are tested instead).
 
 Each completed stage gets a local commit after appropriate checks. No push
-or external publishing is implied. Stage 5 release preparation remains deferred;
-even that stage must not upload or publish anything.
+or external publishing is implied. Stage 6 confirmed writes remains deferred;
+it requires separate contract discovery and approval enforcement, and must never
+treat a stage 5 preview or its hash as upload authorization.
 
 SDK 2.0.0 is published as `@modelcontextprotocol/server`, Node >=20.
 Use Node >=22 here. The 2026-07-28 HTTP spec removes protocol-level sessions
